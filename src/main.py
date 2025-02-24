@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from logger import logger
 
 # Indentify each bot start in log
-logger.info(f'Starting bot...')
+logger.info(f'Starting bot...........')
 
 # Load environment variables
 load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)),'.env'))
@@ -29,7 +29,7 @@ cogs = ['music']
 async def on_ready():
     # Update bot status
     await bot.change_presence(status=discord.Status.online, 
-                            activity=discord.Activity(type=ActivityType.listening, name="/help"))
+                            activity=discord.Activity(type=ActivityType.listening, name="/help | /setup"))
     logger.info(f'Logged in as {bot.user}')
     # Load cogs
     for cog in cogs:
@@ -37,7 +37,7 @@ async def on_ready():
             await bot.load_extension(f'cogs.{cog}')
             logger.info(f'Cog "{cog}" loaded successfully')
         except Exception as e:
-            logger.error(f'Failed to load cog "{cog}": {e}')
+            logger.error(f'Failed to load cog \'{cog}\': {e}')
     # Load / commands
     try:
         synced = await bot.tree.sync()
@@ -47,4 +47,4 @@ async def on_ready():
 
 # Run bot instance
 if __name__ == '__main__':
-    bot.run(os.getenv('TOKEN'))
+    bot.run(os.getenv('TOKEN'), log_handler=None)
