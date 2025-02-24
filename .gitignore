@@ -1,3 +1,5 @@
 .env
 bot.log
 __pycache__/
+logs/
+plugins/
