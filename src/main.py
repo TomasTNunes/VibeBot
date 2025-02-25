@@ -3,10 +3,10 @@ import discord
 from discord import ActivityType
 from discord.ext import commands
 from dotenv import load_dotenv
-from logger import logger
+from assets.logs.logger import main_logger as logger
 
 # Indentify each bot start in log
-logger.info(f'Starting bot...........')
+logger.info(f'STARTING BOT----------------')
 
 # Load environment variables
 load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)),'.env'))
@@ -24,20 +24,27 @@ cogs = ['music']
 ################################################# EVENTS ###################################################
 ############################################################################################################
 
-# Event for when bot is ready
 @bot.event
 async def on_ready():
+    """
+    Called when the client is done preparing the data received from Discord.
+    Used to update bot status, load cogs and / commands.
+    """
     # Update bot status
     await bot.change_presence(status=discord.Status.online, 
                             activity=discord.Activity(type=ActivityType.listening, name="/help | /setup"))
     logger.info(f'Logged in as {bot.user}')
+
     # Load cogs
     for cog in cogs:
         try:
             await bot.load_extension(f'cogs.{cog}')
-            logger.info(f'Cog "{cog}" loaded successfully')
+            logger.info(f'Cog `{cog}` loaded successfully')
         except Exception as e:
             logger.error(f'Failed to load cog \'{cog}\': {e}')
+    # Log loades cogs
+    logger.info(f'Loaded cogs: {list(bot.cogs.keys())}')
+
     # Load / commands
     try:
         synced = await bot.tree.sync()
@@ -45,6 +52,10 @@ async def on_ready():
     except Exception as e:
         logger.error(f'Failed to sync commands: {e}')
 
-# Run bot instance
+
 if __name__ == '__main__':
-    bot.run(os.getenv('TOKEN'), log_handler=None)
+    """Run bot instance"""
+    try:
+        bot.run(os.getenv('TOKEN'), log_handler=None)
+    finally:
+        logger.info(f'BOT SHUTDOWN----------------')
