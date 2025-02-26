@@ -1,6 +1,16 @@
+# Environment variables
 .env
-bot.log*
-__pycache__/
+
+# Lavalink
 lavalink/logs/
 plugins/
+
+# VibeBot Logs
+bot.log*
+music_data.log*
+
+# Cache
+__pycache__/
+
+# VibeBot data
 music_data.json
