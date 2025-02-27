@@ -51,3 +51,12 @@ music_data_file_handler = RotatingFileHandler(music_data_log_path, maxBytes=1*10
 music_data_formatter = CustomFormatter('%(asctime)s %(levelname)-8s %(name_in_brackets)-27s %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 music_data_file_handler.setFormatter(music_data_formatter)
 music_data_logger.addHandler(music_data_file_handler)
+
+# Create a logger for debugging
+debug_logger = logging.getLogger('vibebot.debug')
+debug_logger.propagate = False # don't use Root Handlers
+debug_log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'debug.log')
+debug_file_handler = RotatingFileHandler(debug_log_path, maxBytes=1*1024*1024*1024, backupCount=1)
+debug_formatter = CustomFormatter('%(asctime)s %(levelname)-8s %(name_in_brackets)-21s %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+debug_file_handler.setFormatter(debug_formatter)
+debug_logger.addHandler(debug_file_handler)

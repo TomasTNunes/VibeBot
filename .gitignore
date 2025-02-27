@@ -8,6 +8,7 @@ plugins/
 # VibeBot Logs
 bot.log*
 music_data.log*
+debug.log*
 
 # Cache
 __pycache__/
