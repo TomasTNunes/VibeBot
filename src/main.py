@@ -3,7 +3,7 @@ import discord
 from discord import ActivityType
 from discord.ext import commands
 from dotenv import load_dotenv
-from assets.logs.logger import main_logger as logger
+from assets.logs.logger import main_logger as logger, debug_logger
 
 # Indentify each bot start in log
 logger.info(f'STARTING BOT----------------')
