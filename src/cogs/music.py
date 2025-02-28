@@ -161,7 +161,7 @@ class MusicCog(commands.Cog):
         # Remove music data for guilds where the bot is no longer in
         for guild_id in list(self.music_data.keys()):
             if guild_id not in guild_ids:
-                del self.music_data[guild_id]
+                self.music_data.pop(guild_id, None)
                 music_data_logger.info(f'Music data for guild {guild_id} removed.')
         logger.info(f'Music data cleaned for guilds where the bot is no longer in.')
         music_data_logger.info(f'Music data cleaned for guilds where the bot is no longer in.')
@@ -217,7 +217,7 @@ class MusicCog(commands.Cog):
         embed.set_footer(text=f'For help type: /help')
 
         # Set the default music message
-        message_text = '__**Queue list:**__\nJoin a voice channel and queue songs by name or url in here.\n'
+        message_text = 'Join a voice channel and queue songs by name or url in here.\n'
 
         return message_text, embed
                 
@@ -228,6 +228,16 @@ class MusicCog(commands.Cog):
     ######################################
     ########### DISCORD EVENTS ###########
     ######################################
+
+    @commands.Cog.listener()
+    async def on_guild_remove(self, guild: discord.Guild):
+        """Handle bot leaving a server. Remove guild from music data."""
+        # Removes guild from music data, if it exists
+        if self.music_data.pop(str(guild.id), None):
+            music_data_logger.info(f'Music data for guild {guild.id} removed.')
+
+            # Save the updated music data
+            self.save_music_data()
     
     ######################################
     ######### BOT JOIN & CHECK ###########
