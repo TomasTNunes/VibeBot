@@ -44,10 +44,19 @@ class LavalinkVoiceClient(discord.VoiceProtocol):
         await self.lavalink.voice_update_handler(lavalink_data)
 
     async def on_voice_state_update(self, data):
+        """
+        This method whenever a voice state is updated.
+        
+        NOTE: This function is called when bot is connected, moves or is moved and disconeects or is disconnected. 
+        """
         channel_id = data['channel_id']
 
+        # When bot is disconnected
         if not channel_id:
             await self._destroy()
+
+            # Update MusicPlayerView in music message
+            await self.cog.update_musicplayerview(self.guild_id)
             return
 
         self.channel = self.client.get_channel(int(channel_id))
@@ -74,6 +83,8 @@ class LavalinkVoiceClient(discord.VoiceProtocol):
         """
         Handles the disconnect.
         Cleans up running player and leaves the voice client.
+
+        NOTE: When bot is disconnected by someone else this function is not called.
         """
         player = self.lavalink.player_manager.get(self.guild_id)
 

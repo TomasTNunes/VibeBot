@@ -201,11 +201,17 @@ class MusicPlayerView(View):
         # If the button is connect, than the bot should join the voice channel if possible
         should_connect = True if custom_id == "connect" else False
 
+        # Check if bot is connected
+        is_connected = self.guild.voice_client is not None
+
         # Check if the interation should run using cog.check_and_join
         check = await self.cog.check_and_join(interaction.user, interaction.guild, should_connect)
         if check:
             await interaction.response.send_message(check, ephemeral=True)
         else:
+            # After passsing check_and_join, if bot was not connected before, then it was connected in this check
+            # Save this information for connect_callback_function
+            interaction.extras["wasConectedDuringCheck"] = not is_connected
             return True
 
     
@@ -241,8 +247,15 @@ class MusicPlayerView(View):
         await interaction.response.send_message("You clicked stop!", ephemeral=True)
     
     async def connect_callback(self, interaction):
-        await interaction.response.send_message("You clicked connect!", ephemeral=True)
+        """Handle connect/disconnect button callback."""
+        # If bot is connected and was not connected during check, then disconnect
+        # Otherwise do nothing and bot was already connected during check 
+        if self.guild.voice_client is not None and not interaction.extras["wasConectedDuringCheck"]:
+            await self.guild.voice_client.disconnect(force=True)
 
-        # Update MusicPlayerView in musice message
+        # Update MusicPlayerView in music message
         self.update_buttons()
         await interaction.message.edit(view=self)
+
+        # Defer the interaction
+        await interaction.response.defer()

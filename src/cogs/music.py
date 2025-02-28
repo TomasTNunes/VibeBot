@@ -37,6 +37,8 @@ class MusicCog(commands.Cog):
         # Cleanup music data for guilds where the bot is no longer in
         self.cleanup_music_data()
 
+        # Music text channel ID
+
         # qd o bot liga reset sala? ou so editar para mensagem default (caso exista); se sala nao existir nao fazer nada; se sala existir e mensagem nao reset_setup?; 
         # apagar todas as mensagens daquela sala que nao seja a music message
 
@@ -79,6 +81,9 @@ class MusicCog(commands.Cog):
 
             # Restore persistent MusicPlayerViews
             await self.restore_musicplayerviews()
+
+            # Cleanup messages from music text channels that are not the music message, and create missing music messages
+            await self.cleanup_music_channels()
             
         except Exception as e:
             # Gracefully unload the cog if an exception occurs during setup
@@ -219,6 +224,9 @@ class MusicCog(commands.Cog):
         # Send the music message (this adds view to bots persistent views automatically)
         music_message = await music_text_channel.send(message_text, embed=embed, view=musicplayerview)
 
+        # Add guild music data to music data and save in `music_data.json`
+        self.add_music_data(music_text_channel.guild.id, music_text_channel.id, music_message.id)
+
         return music_message
     
     @staticmethod
@@ -233,6 +241,38 @@ class MusicCog(commands.Cog):
         message_text = 'Join a voice channel and queue songs by name or url in here.\n'
 
         return message_text, embed
+
+    async def cleanup_music_channels(self):
+        """Remove messages from music text channels that are not the music message and create missing music messages"""
+        # Iterate through all guilds in `music_data.json`
+        for guild_music_data in self.music_data.values():
+            # Get guild from guild ID
+            guild = self.bot.get_guild(guild_music_data['guild_id'])
+
+            # Get music text channel from ID
+            music_text_channel = guild.get_channel(guild_music_data['music_text_channel_id']) if guild else None
+
+            # If music text channel does not exist skip iteration
+            # Don't remove from music data because music data contains other information that should not be deleted
+            # in case music channel is created again (deafult volume, playlists, etc.)
+            if not music_text_channel:
+                continue
+
+            # get music message from ID
+            try:
+                music_message = await music_text_channel.fetch_message(guild_music_data['music_message_id']) if music_text_channel else None
+            except Exception as e:
+                music_message = None
+            
+            # delete all messages in music text channel that are not the music message
+            music_message_id = guild_music_data['music_message_id']
+            await music_text_channel.purge(check=lambda m: m.id != music_message_id, bulk=True)
+
+            # if music message does not exist, create it
+            if not music_message:
+                await self.create_music_message(music_text_channel)
+
+        logger.info('Music text channels cleaned up.')
 
     ######################################
     ######### MUSIC PLAYER VIEW ##########
@@ -249,7 +289,10 @@ class MusicCog(commands.Cog):
             music_text_channel = guild.get_channel(guild_music_data['music_text_channel_id']) if guild else None
 
             # get music message from ID
-            music_message = await music_text_channel.fetch_message(guild_music_data['music_message_id']) if music_text_channel else None
+            try:
+                music_message = await music_text_channel.fetch_message(guild_music_data['music_message_id']) if music_text_channel else None
+            except Exception as e:
+                music_message = None
 
             # If music message exists, restore MusicPlayerView by editing message (this adds view to bots persistent views automatically)
             # This ensures the buttons are restored to default
@@ -263,6 +306,37 @@ class MusicCog(commands.Cog):
             if isinstance(view, MusicPlayerView) and view.guild.id == guild_id:
                 return view
         return None
+    
+    async def update_musicplayerview(self, guild_id: int):
+        """Update MusicPlayerView for the specified guild music message."""
+        # Get music data for this guild in case it exists, otherwise return
+        guild_music_data = self.get_music_data(guild_id)
+        if not guild_music_data:
+            return
+
+        # Get music text channel from ID if it exists, otherwise return
+        music_text_channel = self.bot.get_channel(guild_music_data['music_text_channel_id'])
+        if not music_text_channel:
+            return
+
+        # get music message from ID if it exists, otherwise return
+        try:
+            music_message = await music_text_channel.fetch_message(guild_music_data['music_message_id'])
+            if not music_message:
+                return
+        except Exception as e:
+            return
+
+        # Get MusicPlayerView and update it for this guild if it exists, otherwise create a new one
+        musicplayerview = self.get_musicplayerview(guild_id)
+        if not musicplayerview:
+            musicplayerview = MusicPlayerView(self.bot, self, music_text_channel.guild)
+        else:
+            musicplayerview.update_buttons()
+
+        # Edit music message with updated view
+        await music_message.edit(view=musicplayerview)
+
                 
     ######################################
     ########## LAVALINK EVENTS ###########
@@ -359,6 +433,7 @@ class MusicCog(commands.Cog):
             if voice_client is not None:
                 # If yes, inform to join the same channel
                 return 'You need to join my voice channel first.'
+            
             # If not, inform to join a voice channel
             return 'Join a voice channel first.'
 
@@ -375,8 +450,8 @@ class MusicCog(commands.Cog):
             permissions = voice_channel.permissions_for(guild.me)
 
             # Check if bot has permission to connect and speak in the author's voice channel
-            if not permissions.connect or not permissions.speak:
-                return 'I need `connect` and `speak` permissions.'
+            if not permissions.connect or not permissions.speak or not permissions.view_channel:
+                return 'I need `connect`, `speak` and `view_channel` permissions.'
 
             # Check if author's voice channel has user limit, is full and if bot has permission to move members (as it allows to enter full voice channel)
             if (voice_channel.user_limit > 0) and (len(voice_channel.members) >= voice_channel.user_limit) and not guild.me.guild_permissions.move_members:
@@ -513,10 +588,7 @@ class MusicCog(commands.Cog):
         music_text_channel = await interaction.guild.create_text_channel(name="vibebot-music", overwrites=overwrites, topic=topic_music_text_channel)
 
         # Create music message in music text channel
-        music_message = await self.create_music_message(music_text_channel)
-
-        # Add guild music data to music data and save in `music_data.json`
-        self.add_music_data(interaction.guild.id, music_text_channel.id, music_message.id) 
+        await self.create_music_message(music_text_channel)
 
         # Infom user music text channel was created
         await interaction.followup.send(f'Music text channel created: {music_text_channel.mention}', ephemeral=True) 
