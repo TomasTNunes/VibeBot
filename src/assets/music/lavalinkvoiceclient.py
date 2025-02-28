@@ -3,6 +3,11 @@ import lavalink
 from lavalink.errors import ClientError
 from assets.logs.logger import debug_logger
 
+# Create idle tasker (cancel it when not needed and set varibale to None) (use here and in lavalink strattrack and endtrack events)
+# make send default message in ._destryo()
+# if music message says channel where it is playing, put update_embed in on_voice_state_update
+# All voice events related to bot itself do it here
+
 class LavalinkVoiceClient(discord.VoiceProtocol):
     """
     This is the preferred way to handle external voice sending
