@@ -45,7 +45,7 @@ music_logger.propagate = True # use Root Handlers
 
 # Create a logger for music data in cogs.music.py
 music_data_logger = logging.getLogger('vibebot.music.music_data')
-music_logger.propagate = False # don't use Root Handlers
+music_data_logger.propagate = False # don't use Root Handlers
 music_data_log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'music_data.log')
 music_data_file_handler = RotatingFileHandler(music_data_log_path, maxBytes=1*1024*1024*1024, backupCount=1)
 music_data_formatter = CustomFormatter('%(asctime)s %(levelname)-8s %(name_in_brackets)-27s %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
