@@ -9,6 +9,7 @@ import asyncio
 from assets.logs.logger import music_logger as logger, music_data_logger, debug_logger
 from assets.music.lavalinkvoiceclient import LavalinkVoiceClient
 from assets.music.musicplayerview import MusicPlayerView
+from assets.replies.reply_embed import error_embed, success_embed, warning_embed
 
 ############################################################################################################
 ############################################ MusicCogClass #################################################
@@ -347,6 +348,27 @@ class MusicCog(commands.Cog):
         """This is a custom event, emitted when a connection to a Lavalink node is successfully established."""
         logger.info(f'Lavalink client node `{event.node.name}` connected.')
     
+    @commands.Cog.listener()
+    async def on_track_start(self, event: TrackStartEvent):
+        """This event is emitted when a track begins playing (e.g. via player.play())."""
+        # Get voice client for this guild
+        guild_id = event.player.guild_id
+        voice_client = event.player.node.get_guild_voice_client(guild_id)
+
+        # if voice client exists and is of type LavalinkVoiceClient, cancel idle timer task
+        if voice_client and isinstance(voice_client, LavalinkVoiceClient):
+            voice_client.stop_idle_timer()
+
+    @commands.Cog.listener()
+    async def on_queue_end(self, event: QueueEndEvent):
+        """This is a custom event, emitted by the DefaultPlayer when there are no more tracks in the queue."""
+        # Get voice client for this guild
+        guild_id = event.player.guild_id
+        voice_client = event.player.node.get_guild_voice_client(guild_id)
+
+        # if voice client exists and is of type LavalinkVoiceClient, start idle timer task
+        await voice_client.start_idle_timer()
+    
     ######################################
     ########### DISCORD EVENTS ###########
     ######################################
@@ -373,7 +395,7 @@ class MusicCog(commands.Cog):
             try:
                 await message.delete()
             except discord.Forbidden:
-                await message.channel.send("I need `manage_messages`, `read_message_history` and `view_channel` permissions in this text channel.",
+                await message.channel.send(embed=error_embed("I need `manage_messages`, `read_message_history` and `view_channel` permissions in this text channel."),
                                      delete_after=15)
             except discord.NotFound:
                 pass
@@ -488,7 +510,7 @@ class MusicCog(commands.Cog):
 
             # Handle NoPrivateMessage: An exception raised when a command does not work in a direct message.
             if isinstance(error, app_commands.NoPrivateMessage):
-                await interaction.response.send_message("This command cannot be used in private messages.", ephemeral=True)
+                await interaction.response.send_message(embed=error_embed("This command cannot be used in private messages."), ephemeral=True)
             
             # Handle MissingPermissions: An exception raised when the command invoker lacks permissions to run a command.
             elif isinstance(error, app_commands.MissingPermissions):
@@ -496,7 +518,7 @@ class MusicCog(commands.Cog):
                 for permission in error.missing_permissions:
                     msg_text += f' `{permission}`,'
                 msg_text = msg_text[:-1]+'.'
-                await interaction.response.send_message(msg_text, ephemeral=True)
+                await interaction.response.send_message(embed=error_embed(msg_text), ephemeral=True)
             
             # Handle BotMissingPermissions: An exception raised when the bot’s member lacks permissions to run a command.
             elif isinstance(error, app_commands.BotMissingPermissions):
@@ -504,16 +526,16 @@ class MusicCog(commands.Cog):
                 for permission in error.missing_permissions:
                     msg_text += f' `{permission}`,'
                 msg_text = msg_text[:-1]+'.'
-                await interaction.response.send_message(msg_text, ephemeral=True)
+                await interaction.response.send_message(embed=error_embed(msg_text), ephemeral=True)
             
             # Handle CommandOnCooldown: An exception raised when the command being invoked is on cooldown.
             elif isinstance(error, app_commands.CommandOnCooldown):
-                await interaction.response.send_message(f"This command is on cooldown. Try again in {error.retry_after:.2f} seconds.", ephemeral=True)
+                await interaction.response.send_message(embed=error_embed(f"This command is on cooldown. Try again in {error.retry_after:.2f} seconds."), ephemeral=True)
             
             # Handle MissingRole: An exception raised when the command invoker lacks a role to run a command.
             elif isinstance(error, app_commands.MissingRole):
                 msg_text = 'You need the following role to run this command:'
-                await interaction.response.send_message(f'You need the following role to run this command: `{error.missing_role}`', ephemeral=True)
+                await interaction.response.send_message(embed=error_embed(f'You need the following role to run this command: `{error.missing_role}`'), ephemeral=True)
             
             # Handle MissingAnyRole: An exception raised when the command invoker lacks any of the roles specified to run a command.
             elif isinstance(error, app_commands.MissingAnyRole):
@@ -521,19 +543,19 @@ class MusicCog(commands.Cog):
                 for role in error.missing_roles:
                     msg_text += f' `{role}`,'
                 msg_text = msg_text[:-1]+'.'
-                await interaction.response.send_message(msg_text, ephemeral=True)
+                await interaction.response.send_message(embed=error_embed(msg_text), ephemeral=True)
             
             # For other CheckFailure exceptions, like for example for cutom checks
             else:
-                await interaction.response.send_message(f'An unexpected error has occured: {error}', ephemeral=True)
+                await interaction.response.send_message(embed=error_embed(f'An unexpected error has occured: {error}'), ephemeral=True)
         
         # Handle CommandInvokeError: An exception raised when the command being invoked raised an exception.
         elif isinstance(error, app_commands.CommandInvokeError):
-            await interaction.followup.send(f'An unexpected error has occured: {error.original}', ephemeral=True)
+            await interaction.followup.send(embed=error_embed(f'An unexpected error has occured: {error.original}'), ephemeral=True)
         
         # Handle rest of app_commands.AppCommandError exceptions
         else:
-            await interaction.response.send_message(f'An unexpected error has occured: {error}', ephemeral=True)
+            await interaction.response.send_message(embed=error_embed(f'An unexpected error has occured: {error}'), ephemeral=True)
 
 
     @app_commands.command(name='setup', description='Create music text channel')
@@ -567,7 +589,7 @@ class MusicCog(commands.Cog):
 
         # If music text channel exists, inform user
         if music_text_channel is not None:
-            await interaction.followup.send(f'Music text channel already exists: {music_text_channel.mention}', ephemeral=True)
+            await interaction.followup.send(embed=warning_embed(f'Music text channel already exists: {music_text_channel.mention}'), ephemeral=True)
             return
 
         # Create music text channel with required permissions for bot role
@@ -591,7 +613,7 @@ class MusicCog(commands.Cog):
         await self.create_music_message(music_text_channel)
 
         # Infom user music text channel was created
-        await interaction.followup.send(f'Music text channel created: {music_text_channel.mention}', ephemeral=True) 
+        await interaction.followup.send(embed=success_embed(f'Music text channel created: {music_text_channel.mention}'), ephemeral=True) 
 
 
 async def setup(bot):
