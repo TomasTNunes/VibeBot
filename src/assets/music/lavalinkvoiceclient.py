@@ -20,18 +20,19 @@ class LavalinkVoiceClient(discord.VoiceProtocol):
         self.client = client
         self.channel = channel
         self.guild_id = channel.guild.id
+        self.cog = self.client.get_cog("MusicCog")
         self._destroyed = False
 
-        if not hasattr(self.client, 'music'):
+        if not hasattr(self.client, 'lavalink'):
             # Instantiate a client if one doesn't exist.
             # We store it in `self.client` so that it may persist across cog reloads,
             # however this is not mandatory.
-            self.client.music = lavalink.Client(client.user.id)
-            self.client.music.add_node(host='localhost', port=2333, password='youshallnotpass',
+            self.client.lavalink = lavalink.Client(client.user.id)
+            self.client.lavalink.add_node(host='localhost', port=2333, password='youshallnotpass',
                                           region='eu', name='music-node')
 
         # Create a shortcut to the Lavalink client here.
-        self.lavalink = self.client.music
+        self.lavalink = self.client.lavalink
 
     async def on_voice_server_update(self, data):
         # the data needs to be transformed before being handed down to
