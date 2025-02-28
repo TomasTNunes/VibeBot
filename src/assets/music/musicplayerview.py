@@ -2,6 +2,7 @@ import discord
 from discord import PartialEmoji
 from discord.ext import commands
 from discord.ui import Button, View
+from assets.replies.reply_embed import error_embed, success_embed, warning_embed
 
 class MusicPlayerView(View):
     """Class to control View with buttons for music message. Each music message has its own View instance."""
@@ -207,7 +208,7 @@ class MusicPlayerView(View):
         # Check if the interation should run using cog.check_and_join
         check = await self.cog.check_and_join(interaction.user, interaction.guild, should_connect)
         if check:
-            await interaction.response.send_message(check, ephemeral=True)
+            await interaction.response.send_message(embed=error_embed(check), ephemeral=True)
         else:
             # After passsing check_and_join, if bot was not connected before, then it was connected in this check
             # Save this information for connect_callback_function
