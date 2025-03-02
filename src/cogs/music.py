@@ -275,33 +275,53 @@ class MusicCog(commands.Cog):
             queue_shown_size = len(queue_shown)
 
             for i,item in enumerate(queue_shown[::-1]):
-                queue_time += item.duration
-                track_duration_str = (
-                    f'{str(item.duration // 3600000).zfill(2)}:{(item.duration % 3600000) // 60000:02d}:{(item.duration % 60000) // 1000:02d}'
-                    if item.duration >= 3600000 else
-                    f'{str(item.duration // 60000).zfill(2)}:{item.duration % 60000 // 1000:02d}'
+                if item.is_stream:
+                    track_duration_str = 'LIVE'
+                else:
+                    queue_time += item.duration
+                    track_duration_str = (
+                        f'{str(item.duration // 3600000).zfill(2)}:{(item.duration % 3600000) // 60000:02d}:{(item.duration % 60000) // 1000:02d}'
+                        if item.duration >= 3600000 else
+                        f'{str(item.duration // 60000).zfill(2)}:{item.duration % 60000 // 1000:02d}'
+                    )
+                queue_list += (
+                    f'\n**{queue_shown_size - i}.** '
+                    f'{item.author} - {item.title}'
+                    f' - `{track_duration_str}`' 
+                    if item.is_seekable else
+                    f'\n**{queue_shown_size - i}.** '
+                    f'{item.uri}'
+                    f' - `{track_duration_str}`'
                 )
-                queue_list += f'\n**{queue_shown_size - i}.** {item.author} - {item.title} - `{track_duration_str}`'
             
             # Get current track information
             current_track = player.current
-            current_track_duration_str = (
-                    f'{str(current_track.duration // 3600000).zfill(2)}:{(current_track.duration % 3600000) // 60000:02d}:{(current_track.duration % 60000) // 1000:02d}'
-                    if current_track.duration >= 3600000 else
-                    f'{str(current_track.duration // 60000).zfill(2)}:{current_track.duration % 60000 // 1000:02d}'
-                )
-            queue_time += current_track.duration
+            if current_track.is_stream:
+                current_track_duration_str = 'LIVE'
+            else:
+                current_track_duration_str = (
+                        f'{str(current_track.duration // 3600000).zfill(2)}:{(current_track.duration % 3600000) // 60000:02d}:{(current_track.duration % 60000) // 1000:02d}'
+                        if current_track.duration >= 3600000 else
+                        f'{str(current_track.duration // 60000).zfill(2)}:{current_track.duration % 60000 // 1000:02d}'
+                    )
+                queue_time += current_track.duration
 
             # Create music message Embed
             embed = Embed(color= discord.Colour.from_rgb(137, 76, 193),
                           description=(
-                              f'**[{current_track.author} - {current_track.title}]({current_track.uri})** - `{current_track_duration_str}`\n'
+                              f'**[{current_track.author} - {current_track.title}]({current_track.uri})**'
+                              f' - `{current_track_duration_str}`\n'
+                              f'Requester: {current_track.requester.mention}\n'
+                              f'Channel: {guild.voice_client.channel.mention}'
+                              if current_track.is_seekable else
+                              f'**{current_track.uri}**'
+                              f' - `{current_track_duration_str}`\n'
                               f'Requester: {current_track.requester.mention}\n'
                               f'Channel: {guild.voice_client.channel.mention}'
                               )
             )
             embed.set_author(name='Now Playing')
-            embed.set_thumbnail(url=current_track.artwork_url)
+            embed.set_thumbnail(url=current_track.artwork_url if current_track.artwork_url else self.bot.user.avatar.url)
             queue_time_str = (
                     f'{str(queue_time // 3600000).zfill(2)}:{(queue_time % 3600000) // 60000:02d}:{(queue_time % 60000) // 1000:02d}'
                     if queue_time >= 3600000 else
@@ -448,6 +468,7 @@ class MusicCog(commands.Cog):
         
         Used to:
             - Start the auto-disconnect idle timer
+            - If autoplay is on adds recomended track to queue
             - Update music message embed
             - Update MusicPlayerView
             - Deletes previous track from guilds player
@@ -459,14 +480,31 @@ class MusicCog(commands.Cog):
         # if voice client exists and is of type LavalinkVoiceClient, start idle timer task
         if voice_client and isinstance(voice_client, LavalinkVoiceClient):
             await voice_client.start_idle_timer()
-
+        
+        # if autoplay is on, add recommended track
+        # Create query based only on previous track. Only if this track from spotify
+        # No need to update embed as add_to_queue will update it, unless add_to_queue fails.
+        track = event.player.fetch(key='previous_track', default=None)
+        if event.player.fetch(key='autoplay', default=False) and track and track.source_name == 'spotify':
+            query = f'seed_artists={track.plugin_info['artistUrl'].split('/')[-1]}&seed_tracks={track.identifier}&limit=1'
+            add_to_queue_check = await self.add_to_queue(query, self.bot.user, voice_client.guild, search_autoplay=True)
+            # check if successful
+            if not add_to_queue_check:
+                return
+        else:
+            # inform user that last track must be from spotify for now
+            guild_music_data = self.get_music_data(guild_id)
+            music_text_channel = self.bot.get_channel(guild_music_data['music_text_channel_id']) if guild_music_data else None
+            if music_text_channel:
+                await music_text_channel.send(embed=warning_embed('`AutoPlay` only works if last music track is from spotify.'), delete_after=15)
+            
         # Update music message embed
         await self.update_music_embed(voice_client.guild)
 
         # Update MusicPlayerView in music message
         await self.update_musicplayerview(guild_id)
 
-        # Delete previous track from guilds player, if it exists
+        # Delete previous track from guilds player, if it exists and aytoplay is not on
         try:
             event.player.delete(key='previous_track') # raises KeyError – If the key doesn’t exist.
         except Exception:
@@ -624,7 +662,7 @@ class MusicCog(commands.Cog):
     ############## ACTIONS ###############
     ######################################
 
-    async def add_to_queue(self, query: str, author: discord.Member, guild: discord.Guild):
+    async def add_to_queue(self, query: str, author: discord.Member, guild: discord.Guild, search_autoplay: bool = False):
         """
         Add query to lavalink queue.
 
@@ -644,7 +682,11 @@ class MusicCog(commands.Cog):
 
         # Check if query is url. If not, the deafault search engine is used.
         if not url_rx.match(query):
-            query = f'spsearch:{query}'
+            # Check if autoplay recommendation should be used
+            if search_autoplay:
+                query = f'sprec:{query}'
+            else:
+                query = f'spsearch:{query}'
         
         # Get the results for the query from Lavalink.
         results = await player.node.get_tracks(query)

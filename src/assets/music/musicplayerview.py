@@ -2,6 +2,8 @@ import discord
 from discord import PartialEmoji
 from discord.ext import commands
 from discord.ui import Button, View
+from lavalink.events import QueueEndEvent
+import random
 from assets.replies.reply_embed import error_embed, success_embed, warning_embed
 
 class MusicPlayerView(View):
@@ -263,7 +265,7 @@ class MusicPlayerView(View):
         
         Play previous track.
         It does not needs to update MusicPlayerView.
-        It needs to update music message embed.
+        It does not needs to update music message embed.
         """
         # Get guild player
         player = self.cog.lavalink.player_manager.get(self.guild.id)
@@ -281,9 +283,6 @@ class MusicPlayerView(View):
 
         # Play previous track
         await player.play(previous_track)
-
-        # Update music message embed
-        await self.cog.update_music_embed(self.guild)
 
     async def resume_pause_callback(self, interaction: discord.Interaction):
         """
@@ -324,11 +323,11 @@ class MusicPlayerView(View):
     
     async def next_track_callback(self, interaction: discord.Interaction):
         """
-        Handle previous track button callback.
+        Handle next track button callback.
         
         Skips to next track.
         It does not needs to update MusicPlayerView.
-        It needs to update music message embed.
+        It does not needs to update music message embed.
         """
         # Get guild player
         player = self.cog.lavalink.player_manager.get(self.guild.id)
@@ -338,9 +337,6 @@ class MusicPlayerView(View):
 
         # Skip to next track
         await player.skip()
-
-        # Update music message embed
-        await self.cog.update_music_embed(self.guild)
     
     async def volume_up_callback(self, interaction: discord.Interaction):
         """"
@@ -402,13 +398,77 @@ class MusicPlayerView(View):
         await interaction.message.edit(view=self)
     
     async def shuffle_callback(self, interaction: discord.Interaction):
-        await interaction.response.send_message("You clicked shuffle!", ephemeral=True)
+        """
+        Handle shuffle button callback.
+        
+        Shuffle queue.
+        It does not needs to update MusicPlayerView.
+        It needs to update music message embed.
+        """
+        # Defer the interaction
+        await interaction.response.defer()
+
+        # Get guild player
+        player = self.cog.lavalink.player_manager.get(self.guild.id)
+
+        # Shuffle queue
+        random.shuffle(player.queue)
+
+        # Update music message embed
+        await self.cog.update_music_embed(self.guild)
     
     async def autoplay_callback(self, interaction: discord.Interaction):
-        await interaction.response.send_message("You clicked autoplay!", ephemeral=True)
+        """
+        Handle autoplay button callback.
+        
+        Toggle autoplay.
+        It needs to update MusicPlayerView.
+        It does not needs to update music message embed.
+        """
+        # Defer the interaction
+        await interaction.response.defer()
+
+        # Get guild player
+        player = self.cog.lavalink.player_manager.get(self.guild.id)
+
+        # Toggle autoplay
+        if not player.fetch(key="autoplay", default=False):
+            player.store(key="autoplay", value=True)
+        else:
+            player.store(key="autoplay", value=False)
+
+        # Update MusicPlayerView in music message
+        self.update_buttons()
+        await interaction.message.edit(view=self)
     
     async def stop_callback(self, interaction: discord.Interaction):
-        await interaction.response.send_message("You clicked stop!", ephemeral=True)
+        """
+        Handle stop button callback.
+        
+        Stop music. Resets player default settings. Triggers lavalink QueueEndEvent.
+        It does not needs to update MusicPlayerView.
+        It does not needs to update music message embed.
+        """
+        # Get guild player
+        player = self.cog.lavalink.player_manager.get(self.guild.id)
+
+        # Defer the interaction
+        await interaction.response.defer()
+
+        # Clear player queue
+        player.queue.clear()
+
+        # Set player loop to None
+        player.loop = player.LOOP_NONE
+
+        # Stop music player
+        await player.stop()
+
+        # Turn off autoplay if it's on
+        player.store(key="autoplay", value=False)
+
+        # Manually trigger the queue end logic
+        await self.cog.on_queue_end(QueueEndEvent(player))
     
     async def connect_callback(self, interaction: discord.Interaction):
         """
