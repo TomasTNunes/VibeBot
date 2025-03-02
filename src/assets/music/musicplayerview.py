@@ -377,7 +377,29 @@ class MusicPlayerView(View):
         await self.cog.update_music_embed(self.guild)
     
     async def loop_callback(self, interaction: discord.Interaction):
-        await interaction.response.send_message("You clicked loop!", ephemeral=True)
+        """
+        Handle loop button callback.
+        
+        Toggle loop.
+        It needs to update MusicPlayerView.
+        It does not needs to update music message embed.
+        """
+        # Get guild player
+        player = self.cog.lavalink.player_manager.get(self.guild.id)
+
+        if player.loop == player.LOOP_NONE:
+            player.set_loop(player.LOOP_QUEUE)
+            await interaction.response.send_message(embed=success_embed("Looping Queue."), ephemeral=True, delete_after=5)
+        elif player.loop == player.LOOP_QUEUE:
+            player.set_loop(player.LOOP_SINGLE)
+            await interaction.response.send_message(embed=success_embed("Looping Track."), ephemeral=True, delete_after=5)
+        elif player.loop == player.LOOP_SINGLE:
+            player.set_loop(player.LOOP_NONE)
+            await interaction.response.send_message(embed=success_embed("Looping Disbaled."), ephemeral=True, delete_after=5)
+        
+        # Update MusicPlayerView in music message
+        self.update_buttons()
+        await interaction.message.edit(view=self)
     
     async def shuffle_callback(self, interaction: discord.Interaction):
         await interaction.response.send_message("You clicked shuffle!", ephemeral=True)
