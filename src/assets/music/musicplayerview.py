@@ -258,8 +258,33 @@ class MusicPlayerView(View):
         await self.cog.update_music_embed(self.guild)
 
     async def previous_track_callback(self, interaction: discord.Interaction):
-        await interaction.response.send_message("You clicked previous track!", ephemeral=True)
-    
+        """
+        Handle previous track button callback.
+        
+        Play previous track.
+        It does not needs to update MusicPlayerView.
+        It needs to update music message embed.
+        """
+        # Get guild player
+        player = self.cog.lavalink.player_manager.get(self.guild.id)
+
+        # Get previous track, if it exists, otherwise None
+        previous_track = player.fetch(key='previous_track', default=None)
+
+        # check if previous track exists
+        if not previous_track:
+            await interaction.response.send_message(embed=error_embed("No previous track."), ephemeral=True)
+            return
+        
+        # Defer the interaction
+        await interaction.response.defer()
+
+        # Play previous track
+        await player.play(previous_track)
+
+        # Update music message embed
+        await self.cog.update_music_embed(self.guild)
+
     async def resume_pause_callback(self, interaction: discord.Interaction):
         """
         Handle resume/pause button callback.
@@ -293,12 +318,29 @@ class MusicPlayerView(View):
         await interaction.message.edit(view=self)
 
         # Defer the interaction 
-        # (This could be above `if player.paused:` to avoid interaction failing, however it looks like interaction ends way before the pause or resume takes action)
+        # (This could be above `if player.paused:` to avoid interaction failing (timeout), however it looks like interaction ends way before the pause or resume takes action)
         #await interaction.response.defer()
 
     
     async def next_track_callback(self, interaction: discord.Interaction):
-        await interaction.response.send_message("You clicked next track!", ephemeral=True)
+        """
+        Handle previous track button callback.
+        
+        Skips to next track.
+        It does not needs to update MusicPlayerView.
+        It needs to update music message embed.
+        """
+        # Get guild player
+        player = self.cog.lavalink.player_manager.get(self.guild.id)
+
+        # Defer the interaction
+        await interaction.response.defer()
+
+        # Skip to next track
+        await player.skip()
+
+        # Update music message embed
+        await self.cog.update_music_embed(self.guild)
     
     async def volume_up_callback(self, interaction: discord.Interaction):
         """"
