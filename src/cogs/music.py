@@ -3,13 +3,17 @@ import discord
 from discord import app_commands, Embed
 from discord.ext import commands
 import lavalink
+from lavalink.server import LoadType
 from lavalink.events import TrackStartEvent, QueueEndEvent, NodeConnectedEvent
 import json
 import asyncio
+import re
 from assets.logs.logger import music_logger as logger, music_data_logger, debug_logger
 from assets.music.lavalinkvoiceclient import LavalinkVoiceClient
 from assets.music.musicplayerview import MusicPlayerView
 from assets.replies.reply_embed import error_embed, success_embed, warning_embed
+
+url_rx = re.compile(r'https?://(?:www\.)?.+')
 
 ############################################################################################################
 ############################################ MusicCogClass #################################################
@@ -37,11 +41,6 @@ class MusicCog(commands.Cog):
 
         # Cleanup music data for guilds where the bot is no longer in
         self.cleanup_music_data()
-
-        # Music text channel ID
-
-        # qd o bot liga reset sala? ou so editar para mensagem default (caso exista); se sala nao existir nao fazer nada; se sala existir e mensagem nao reset_setup?; 
-        # apagar todas as mensagens daquela sala que nao seja a music message
 
     ######################################
     ############# COG LOAD ###############
@@ -80,10 +79,8 @@ class MusicCog(commands.Cog):
             # Add event hooks
             self.lavalink.add_event_hooks(self)
 
-            # Restore persistent MusicPlayerViews
-            await self.restore_musicplayerviews()
-
-            # Cleanup messages from music text channels that are not the music message, and create missing music messages
+            # Cleanup messages from music text channels that are not the music message, and create missing music messages.
+            # Set existing music messages to default and restore MusicPlayerViews for these.
             await self.cleanup_music_channels()
             
         except Exception as e:
@@ -242,9 +239,92 @@ class MusicCog(commands.Cog):
         message_text = 'Join a voice channel and queue songs by name or url in here.\n'
 
         return message_text, embed
+    
+    async def update_music_embed(self, guild: discord.Guild):
+        """Update the music message embed in the music text channel."""
+        # get guild music data
+        guild_music_data = self.get_music_data(guild.id)
+
+        # get music text channel from ID
+        music_text_channel = guild.get_channel(guild_music_data['music_text_channel_id']) if guild_music_data else None
+        if not music_text_channel:
+            return
+
+        # get music message from ID
+        try:
+            music_message = await music_text_channel.fetch_message(guild_music_data['music_message_id']) if music_text_channel else None
+            if not music_message:
+                return
+        except Exception as e:
+            return
+
+        # get player for this guild
+        player = self.lavalink.player_manager.get(guild.id)
+
+        # check if player exists and is playing to update track, otherwise sets default music message
+        if player and player.is_playing:
+            # Generate queue list string, and gets queue time
+            queue_size = len(player.queue)
+            queue_time = 0
+            queue_list = '__**Queue list:**__\n'
+            if queue_size > 15:
+                queue_shown = player.queue[:15]
+                queue_list += f'\nAnd **{queue_size-15}** more...'
+            else:
+                queue_shown = player.queue
+            queue_shown_size = len(queue_shown)
+
+            for i,item in enumerate(queue_shown[::-1]):
+                queue_time += item.duration
+                track_duration_str = (
+                    f'{str(item.duration // 3600000).zfill(2)}:{(item.duration % 3600000) // 60000:02d}:{(item.duration % 60000) // 1000:02d}'
+                    if item.duration >= 3600000 else
+                    f'{str(item.duration // 60000).zfill(2)}:{item.duration % 60000 // 1000:02d}'
+                )
+                queue_list += f'\n**{queue_shown_size - i}.** {item.author} - {item.title} - `{track_duration_str}`'
+            
+            # Get current track information
+            current_track = player.current
+            current_track_duration_str = (
+                    f'{str(current_track.duration // 3600000).zfill(2)}:{(current_track.duration % 3600000) // 60000:02d}:{(current_track.duration % 60000) // 1000:02d}'
+                    if current_track.duration >= 3600000 else
+                    f'{str(current_track.duration // 60000).zfill(2)}:{current_track.duration % 60000 // 1000:02d}'
+                )
+            queue_time += current_track.duration
+
+            # Create music message Embed
+            embed = Embed(color= discord.Colour.from_rgb(137, 76, 193),
+                          description=(
+                              f'**[{current_track.author} - {current_track.title}]({current_track.uri})** - `{current_track_duration_str}`\n'
+                              f'Requester: {current_track.requester.mention}\n'
+                              f'Channel: {guild.voice_client.channel.mention}'
+                              )
+            )
+            embed.set_author(name='Now Playing')
+            embed.set_thumbnail(url=current_track.artwork_url)
+            queue_time_str = (
+                    f'{str(queue_time // 3600000).zfill(2)}:{(queue_time % 3600000) // 60000:02d}:{(queue_time % 60000) // 1000:02d}'
+                    if queue_time >= 3600000 else
+                    f'{str(queue_time // 60000).zfill(2)}:{queue_time % 60000 // 1000:02d}'
+                )
+            embed.set_footer(text=(
+                f'{queue_size} songs in queue for '
+                f'{queue_time_str} of listening | Volume: {player.volume}%'
+                )
+            )
+
+        else:
+            queue_list, embed = self.get_default_music_message()
+        
+        # Edit music message
+        await music_message.edit(content=queue_list, embed=embed, allowed_mentions=discord.AllowedMentions(users=False))
 
     async def cleanup_music_channels(self):
-        """Remove messages from music text channels that are not the music message and create missing music messages"""
+        """
+        Remove messages from music text channels that are not the music message and create missing music messages.
+        Set music message to default.
+        Restore MusicPlayerView.
+        """
         # Iterate through all guilds in `music_data.json`
         for guild_music_data in self.music_data.values():
             # Get guild from guild ID
@@ -269,37 +349,21 @@ class MusicCog(commands.Cog):
             music_message_id = guild_music_data['music_message_id']
             await music_text_channel.purge(check=lambda m: m.id != music_message_id, bulk=True)
 
-            # if music message does not exist, create it
+            # If music message does not exist, create it. Otherwise, set it to default
             if not music_message:
                 await self.create_music_message(music_text_channel)
+            else:
+                # Get default music message
+                music_channel_text, embed = self.get_default_music_message()
 
-        logger.info('Music text channels cleaned up.')
+                # Set music message to default and restore MusicPlayerView
+                await music_message.edit(content=music_channel_text, embed=embed, view=MusicPlayerView(self.bot, self, guild))
 
+        logger.info('Music text channels cleaned up, music messages set to default and MusicPlayerViews.')
+    
     ######################################
     ######### MUSIC PLAYER VIEW ##########
     ######################################
-
-    async def restore_musicplayerviews(self):
-        """Restore MusicPlayerViews for guilds that are in `music_data.json`."""
-        # Iterate through all guilds in `music_data.json`
-        for guild_music_data in self.music_data.values():
-            # Get guild from guild ID
-            guild = self.bot.get_guild(guild_music_data['guild_id'])
-
-            # Get music text channel from ID
-            music_text_channel = guild.get_channel(guild_music_data['music_text_channel_id']) if guild else None
-
-            # get music message from ID
-            try:
-                music_message = await music_text_channel.fetch_message(guild_music_data['music_message_id']) if music_text_channel else None
-            except Exception as e:
-                music_message = None
-
-            # If music message exists, restore MusicPlayerView by editing message (this adds view to bots persistent views automatically)
-            # This ensures the buttons are restored to default
-            if music_message:
-                await music_message.edit(view=MusicPlayerView(self.bot, self, guild))
-        logger.info('MusicPlayerViews instances restored for guilds in `music_data.json`.')
     
     def get_musicplayerview(self, guild_id: int):
         """Get MusicPlayerView for the specified guild. Returns None if not found."""
@@ -309,7 +373,12 @@ class MusicCog(commands.Cog):
         return None
     
     async def update_musicplayerview(self, guild_id: int):
-        """Update MusicPlayerView for the specified guild music message."""
+        """
+        Update MusicPlayerView for the specified guild music message.
+
+        Useful to update MusicPLayerView buttons outside of Player interactions.
+        In player interactions, use `interaction.message.edit(view=self)`.
+        """
         # Get music data for this guild in case it exists, otherwise return
         guild_music_data = self.get_music_data(guild_id)
         if not guild_music_data:
@@ -348,26 +417,40 @@ class MusicCog(commands.Cog):
         """This is a custom event, emitted when a connection to a Lavalink node is successfully established."""
         logger.info(f'Lavalink client node `{event.node.name}` connected.')
     
-    @commands.Cog.listener()
+    @lavalink.listener(TrackStartEvent)
     async def on_track_start(self, event: TrackStartEvent):
         """This event is emitted when a track begins playing (e.g. via player.play())."""
         # Get voice client for this guild
         guild_id = event.player.guild_id
-        voice_client = event.player.node.get_guild_voice_client(guild_id)
+        voice_client = discord.utils.get(self.bot.voice_clients, guild__id=guild_id)
 
         # if voice client exists and is of type LavalinkVoiceClient, cancel idle timer task
         if voice_client and isinstance(voice_client, LavalinkVoiceClient):
             voice_client.stop_idle_timer()
+        
+        # Update music message embed
+        await self.update_music_embed(voice_client.guild)
+        
+        # Update MusicPlayerView in music message
+        await self.update_musicplayerview(guild_id)
 
-    @commands.Cog.listener()
+    @lavalink.listener(QueueEndEvent)
     async def on_queue_end(self, event: QueueEndEvent):
         """This is a custom event, emitted by the DefaultPlayer when there are no more tracks in the queue."""
+        print('QueueEndEvent')
         # Get voice client for this guild
         guild_id = event.player.guild_id
-        voice_client = event.player.node.get_guild_voice_client(guild_id)
+        voice_client = discord.utils.get(self.bot.voice_clients, guild__id=guild_id)
 
         # if voice client exists and is of type LavalinkVoiceClient, start idle timer task
-        await voice_client.start_idle_timer()
+        if voice_client and isinstance(voice_client, LavalinkVoiceClient):
+            await voice_client.start_idle_timer()
+
+        # Update music message embed
+        await self.update_music_embed(voice_client.guild)
+
+        # Update MusicPlayerView in music message
+        await self.update_musicplayerview(guild_id)
     
     ######################################
     ########### DISCORD EVENTS ###########
@@ -384,19 +467,27 @@ class MusicCog(commands.Cog):
         guild_music_data = self.get_music_data(message.guild.id)
         music_text_channel_id = guild_music_data['music_text_channel_id'] if guild_music_data else None
 
-        # Check is message is from a music text channel, and not from VIbeBot
+        # Check is message is from a music text channel, and not from VibeBot
         if music_text_channel_id == message.channel.id and message.author != self.bot.user:
             # If message is not from a bot send the message to play function
             if not message.author.bot:
-                pass
-                #await play
+                # Check if bot should join and create player
+                check = await self.check_and_join(message.author, message.guild, should_connect=True, should_bePlaying=False)
+                if check:
+                    await message.channel.send(embed=error_embed(check), delete_after=15)
+
+                else:
+                    # Add query to queue and send message if not successful
+                    add_to_queue_check = await self.add_to_queue(message.content, message.author, message.guild)
+                    if add_to_queue_check:
+                        await message.channel.send(embed=error_embed(add_to_queue_check), delete_after=15)
             
             # Delete all the messages in the music text channel that are not from VibeBot
             try:
                 await message.delete()
             except discord.Forbidden:
                 await message.channel.send(embed=error_embed("I need `manage_messages`, `read_message_history` and `view_channel` permissions in this text channel."),
-                                     delete_after=15)
+                                        delete_after=15)
             except discord.NotFound:
                 pass
             except Exception as e:
@@ -421,7 +512,7 @@ class MusicCog(commands.Cog):
     ######### BOT JOIN & CHECK ###########
     ######################################
 
-    async def check_and_join(self, author: discord.Member, guild: discord.Guild, should_connect: bool):
+    async def check_and_join(self, author: discord.Member, guild: discord.Guild, should_connect: bool, should_bePlaying: None):
         """
         This function serves as a prerequisite check for all music-related commands. 
         It ensures that a player exists for the guild and attempts to connect the bot to the author's voice channel when possible. 
@@ -444,7 +535,7 @@ class MusicCog(commands.Cog):
             return 'No lavalink nodes available.'
         
         # Create player if not exists
-        self.lavalink.player_manager.create(guild.id)
+        player = self.lavalink.player_manager.create(guild.id)
 
         # Get Bot voice client if exists, otherwise None
         voice_client = guild.voice_client
@@ -485,8 +576,82 @@ class MusicCog(commands.Cog):
         # If bot is in voice channel, but not in author's voice channel
         elif voice_client.channel.id != voice_channel.id:
             return 'You need to join my voice channel first.'
+        
+        # Stop for commands that require bot to be playing when it's not
+        if not player.is_playing and should_bePlaying:
+            return 'I\'m not playing music.'
 
         # If bot connected to author's voice channel or already is in author's voice channel
+        return False
+    
+    ######################################
+    ############## ACTIONS ###############
+    ######################################
+
+    async def add_to_queue(self, query: str, author: discord.Member, guild: discord.Guild):
+        """
+        Add query to lavalink queue.
+
+        It will search the user query in lavalink and add it to the queue.
+        The query can eith be url or name. If it is url, it can be a playlist.
+        Default search engine is Spotify.
+
+        If successful returns False. Otherwise, it returns a string with the warning/error.
+
+        NOTE: This function assumes that `check_and_join()` has already been called before this function is called. 
+        """
+        # Get player for this guild
+        player = self.lavalink.player_manager.get(guild.id)
+
+        # Remove leading and trailing <>. <> may be used to suppress embedding links in Discord.
+        query = query.strip('<>')
+
+        # Check if query is url. If not, the deafault search engine is used.
+        if not url_rx.match(query):
+            query = f'spsearch:{query}'
+        
+        # Get the results for the query from Lavalink.
+        results = await player.node.get_tracks(query)
+
+        # Check each valid load_types:
+        #   TRACK    - direct URL to a track
+        #   PLAYLIST - direct URL to playlist
+        #   SEARCH   - query prefixed with either "ytsearch:" or "scsearch:". This could possibly be expanded with plugins.
+        #   EMPTY    - no results for the query (result.tracks will be empty)
+        #   ERROR    - the track encountered an exception during loading
+        if results.load_type == LoadType.EMPTY:
+            return 'No results found.'
+        
+        elif results.load_type == LoadType.ERROR:
+            return 'I encountered an error while searching for that query.'
+        
+        elif results.load_type == LoadType.PLAYLIST:
+            # Get List of tracks in the playlist
+            tracks = results.tracks
+
+            # Add each track from playlists to the queue
+            for track in tracks:
+                # Save author mention for music message embed
+                track.extra['requester'] = author
+                player.add(track=track)
+
+        else: # (TRACK or SEARCH)
+            # Get first track from results
+            track = results.tracks[0]
+
+            # Save author mention for music message embed
+            track.extra['requester'] = author
+
+            # Add track to queue
+            player.add(track=track)
+
+        # If player is not playing, start playing. Otherwise, refresh embed.
+        if not player.is_playing:
+            await player.play()
+        else:
+            # Update music embed
+            await self.update_music_embed(guild)
+
         return False
 
     ######################################
