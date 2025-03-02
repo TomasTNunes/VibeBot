@@ -45,7 +45,7 @@ class LavalinkVoiceClient(discord.VoiceProtocol):
     
     async def _check_idle_disconnect(self):
         """Background task to check for 10 minutes of continuous inactivity"""
-        # Wait 5 minutes
+        # Wait 10 minutes
         await asyncio.sleep(300)
 
         # Get player for this guild
@@ -59,7 +59,7 @@ class LavalinkVoiceClient(discord.VoiceProtocol):
             guild_music_data = self.cog.get_music_data(self.guild_id)
             music_text_channel = self.guild.get_channel(guild_music_data['music_text_channel_id']) if guild_music_data else None
             if music_text_channel:
-                await music_text_channel.send(embed=warning_embed("I have been disconnected due to inactivity."), 
+                await music_text_channel.send(embed=warning_embed("I left the voice channel due to inactivity."), 
                                                 delete_after=15)
             
     def stop_idle_timer(self):
@@ -108,11 +108,19 @@ class LavalinkVoiceClient(discord.VoiceProtocol):
         if it doesn't exist yet.
         """
         # ensure there is a player_manager when creating a new voice_client
-        self.lavalink.player_manager.create(guild_id=self.guild_id)
+        player = self.lavalink.player_manager.create(guild_id=self.guild_id)
+        await player.set_volume(self.cog.get_music_data(self.guild_id)['default_volume'])
         await self.channel.guild.change_voice_state(channel=self.channel, self_mute=self_mute, self_deaf=self_deaf)
+
+        ##########################################
+        ######### HANDLE CONNECT ACTIONS #########
+        ##########################################
 
         # start idle task timer
         await self.start_idle_timer()
+
+        # Update MusicPlayerView in music message
+        await self.cog.update_musicplayerview(self.guild_id)
 
     async def disconnect(self, *, force: bool = False) -> None:
         """
@@ -157,6 +165,9 @@ class LavalinkVoiceClient(discord.VoiceProtocol):
 
         # Update MusicPlayerView in music message
         await self.cog.update_musicplayerview(self.guild_id)
+
+        # Update music message embed
+        await self.cog.update_music_embed(self.guild)
         
         # Cancel idle task (If I uncomment, the message warning bot disconnected isnt deleted)
         #self.stop_idle_timer()

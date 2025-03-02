@@ -202,11 +202,14 @@ class MusicPlayerView(View):
         # If the button is connect, than the bot should join the voice channel if possible
         should_connect = True if custom_id == "connect" else False
 
+        # If the button is previous, resume, skip, loop, shuffle or stop, than the bot should be playing
+        should_bePlaying = True if custom_id in ["previous", "resume", "next", "loop", "shuffle", "stop"] else False
+
         # Check if bot is connected
         is_connected = self.guild.voice_client is not None
 
         # Check if the interation should run using cog.check_and_join
-        check = await self.cog.check_and_join(interaction.user, interaction.guild, should_connect)
+        check = await self.cog.check_and_join(interaction.user, interaction.guild, should_connect, should_bePlaying)
         if check:
             await interaction.response.send_message(embed=error_embed(check), ephemeral=True)
         else:
@@ -220,43 +223,145 @@ class MusicPlayerView(View):
     ############# CALLBACKS ##############
     ######################################
 
-    async def volume_down_callback(self, interaction):
-        await interaction.response.send_message("You clicked volume down!", ephemeral=True)
+    async def volume_down_callback(self, interaction: discord.Interaction):
+        """"
+        Handle volume down button callback. 
+        
+        Lower volume by 10. Minimum is 0.
+        It does not needs to update MusicPlayerView.
+        It needs to update music message embed.
+        """
+        # Get guild player
+        player = self.cog.lavalink.player_manager.get(self.guild.id)
 
-    async def previous_track_callback(self, interaction):
+        # Get Current Volume
+        volume = player.volume
+
+        # Check if volume is already minimum (0)
+        if volume == 0:
+            await interaction.response.send_message(embed=error_embed("Volume is already at minimum (0%)."), ephemeral=True)
+            return
+        
+        # Defer the interaction
+        await interaction.response.defer()
+
+        # Lower volume by 10
+        volume-=10
+
+        # Clip volume between 0 and 200
+        volume = max(0, min(200, volume))
+
+        # Set volume
+        await player.set_volume(volume)
+
+        # Update music message embed
+        await self.cog.update_music_embed(self.guild)
+
+    async def previous_track_callback(self, interaction: discord.Interaction):
         await interaction.response.send_message("You clicked previous track!", ephemeral=True)
     
-    async def resume_pause_callback(self, interaction):
-        await interaction.response.send_message("You clicked resume/pause!", ephemeral=True)
-    
-    async def next_track_callback(self, interaction):
-        await interaction.response.send_message("You clicked next track!", ephemeral=True)
-    
-    async def volume_up_callback(self, interaction):
-        await interaction.response.send_message("You clicked volume up!", ephemeral=True)
-    
-    async def loop_callback(self, interaction):
-        await interaction.response.send_message("You clicked loop!", ephemeral=True)
-    
-    async def shuffle_callback(self, interaction):
-        await interaction.response.send_message("You clicked shuffle!", ephemeral=True)
-    
-    async def autoplay_callback(self, interaction):
-        await interaction.response.send_message("You clicked autoplay!", ephemeral=True)
-    
-    async def stop_callback(self, interaction):
-        await interaction.response.send_message("You clicked stop!", ephemeral=True)
-    
-    async def connect_callback(self, interaction):
-        """Handle connect/disconnect button callback."""
-        # If bot is connected and was not connected during check, then disconnect
-        # Otherwise do nothing and bot was already connected during check 
-        if self.guild.voice_client is not None and not interaction.extras["wasConectedDuringCheck"]:
-            await self.guild.voice_client.disconnect(force=True)
+    async def resume_pause_callback(self, interaction: discord.Interaction):
+        """
+        Handle resume/pause button callback.
+
+        Pause if button is Pause. Resume if button is Resume.
+        It needs to update MusicPlayerView.
+        It does not needs to update music message embed.
+
+        NOTE: When bot is connected without music playing the Resume button is shown. When in this state, clicking Resume
+        will send warning that not music is playing.
+        """
+        # Get guild player
+        player = self.cog.lavalink.player_manager.get(self.guild.id)
+
+        # Check if player is playing
+        if not player.is_playing:
+            await interaction.response.send_message(embed=error_embed("No music is playing."), ephemeral=True)
+            return
+
+        # Defer the interaction
+        await interaction.response.defer()
+        
+        # Check if player is paused
+        if player.paused:
+            await player.set_pause(False)
+        else:
+            await player.set_pause(True)
 
         # Update MusicPlayerView in music message
         self.update_buttons()
         await interaction.message.edit(view=self)
 
+        # Defer the interaction 
+        # (This could be above `if player.paused:` to avoid interaction failing, however it looks like interaction ends way before the pause or resume takes action)
+        #await interaction.response.defer()
+
+    
+    async def next_track_callback(self, interaction: discord.Interaction):
+        await interaction.response.send_message("You clicked next track!", ephemeral=True)
+    
+    async def volume_up_callback(self, interaction: discord.Interaction):
+        """"
+        Handle volume up button callback. 
+        
+        Elevate volume by 10. Maximum is 200.
+        It does not needs to update MusicPlayerView.
+        It needs to update music message embed.
+        """
+        # Get guild player
+        player = self.cog.lavalink.player_manager.get(self.guild.id)
+
+        # Get Current Volume
+        volume = player.volume
+
+        # Check if volume is already minimum (0)
+        if volume == 200:
+            await interaction.response.send_message("Volume is already at maximum (200%).", ephemeral=True)
+            return
+
         # Defer the interaction
         await interaction.response.defer()
+
+        # Elevate volume by 10
+        volume+=10
+
+        # Clip volume between 0 and 200
+        volume = max(0, min(200, volume))
+
+        # Set volume
+        await player.set_volume(volume)
+
+        # Update music message embed
+        await self.cog.update_music_embed(self.guild)
+    
+    async def loop_callback(self, interaction: discord.Interaction):
+        await interaction.response.send_message("You clicked loop!", ephemeral=True)
+    
+    async def shuffle_callback(self, interaction: discord.Interaction):
+        await interaction.response.send_message("You clicked shuffle!", ephemeral=True)
+    
+    async def autoplay_callback(self, interaction: discord.Interaction):
+        await interaction.response.send_message("You clicked autoplay!", ephemeral=True)
+    
+    async def stop_callback(self, interaction: discord.Interaction):
+        await interaction.response.send_message("You clicked stop!", ephemeral=True)
+    
+    async def connect_callback(self, interaction: discord.Interaction):
+        """
+        Handle connect/disconnect button callback.
+
+        Connect if button is Connect. Disconnect if button is Disconnect.
+        It does not needs to update MusicPlayerView.
+        It does needs to update music message embed, as it is alredy handled on disconnect.
+
+        NOTE: When entering thin callback, the bow will always be already connected (because of check_and_join()), hence
+        to know when not to disconnect (when the connect button is clicked), it is necessary to know if the bot was
+        connected during check_and_join(). For that interaction.extras["wasConectedDuringCheck"] is used.
+        """
+        # Defer the interaction
+        await interaction.response.defer()
+
+        # If bot is connected and was not connected during check, then disconnect
+        # Otherwise do nothing and bot was already connected during check 
+        if self.guild.voice_client is not None and not interaction.extras["wasConectedDuringCheck"]:
+            await self.guild.voice_client.disconnect(force=True)
