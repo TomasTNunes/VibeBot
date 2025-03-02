@@ -4,7 +4,7 @@ from discord import app_commands, Embed
 from discord.ext import commands
 import lavalink
 from lavalink.server import LoadType
-from lavalink.events import TrackStartEvent, QueueEndEvent, NodeConnectedEvent
+from lavalink.events import TrackStartEvent, QueueEndEvent, NodeConnectedEvent, TrackEndEvent
 import json
 import asyncio
 import re
@@ -419,7 +419,14 @@ class MusicCog(commands.Cog):
     
     @lavalink.listener(TrackStartEvent)
     async def on_track_start(self, event: TrackStartEvent):
-        """This event is emitted when a track begins playing (e.g. via player.play())."""
+        """
+        This event is emitted when a track begins playing (e.g. via player.play()).
+
+        Used to:
+            - Stopping the auto-disconnect idle timer
+            - Update music message embed
+            - Update MusicPlayerView
+        """
         # Get voice client for this guild
         guild_id = event.player.guild_id
         voice_client = discord.utils.get(self.bot.voice_clients, guild__id=guild_id)
@@ -436,8 +443,15 @@ class MusicCog(commands.Cog):
 
     @lavalink.listener(QueueEndEvent)
     async def on_queue_end(self, event: QueueEndEvent):
-        """This is a custom event, emitted by the DefaultPlayer when there are no more tracks in the queue."""
-        print('QueueEndEvent')
+        """
+        This is a custom event, emitted by the DefaultPlayer when there are no more tracks in the queue.
+        
+        Used to:
+            - Start the auto-disconnect idle timer
+            - Update music message embed
+            - Update MusicPlayerView
+            - Deletes previous track from guilds player
+        """
         # Get voice client for this guild
         guild_id = event.player.guild_id
         voice_client = discord.utils.get(self.bot.voice_clients, guild__id=guild_id)
@@ -451,6 +465,28 @@ class MusicCog(commands.Cog):
 
         # Update MusicPlayerView in music message
         await self.update_musicplayerview(guild_id)
+
+        # Delete previous track from guilds player, if it exists
+        try:
+            event.player.delete(key='previous_track') # raises KeyError – If the key doesn’t exist.
+        except Exception:
+            pass
+    
+    @lavalink.listener(TrackEndEvent)
+    async def on_track_end(self, event: TrackEndEvent):
+        """
+        This event is emitted when the player finished playing a track.
+
+        Used to:
+            - Save in guilds player the previous track
+        """
+        # Get player for this guild
+        player = self.lavalink.player_manager.get(event.player.guild_id)
+
+        # Store previous track
+        if player:
+            player.store(key='previous_track', value=event.track)
+        
     
     ######################################
     ########### DISCORD EVENTS ###########
