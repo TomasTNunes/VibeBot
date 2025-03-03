@@ -205,7 +205,7 @@ class MusicPlayerView(View):
         should_connect = True if custom_id == "connect" else False
 
         # If the button is previous, resume, skip, loop, shuffle or stop, than the bot should be playing
-        should_bePlaying = True if custom_id in ["previous", "resume", "next", "loop", "shuffle", "stop"] else False
+        should_bePlaying = True if custom_id in ["previous", "resume", "next", "shuffle", "stop"] else False
 
         # Check if bot is connected
         is_connected = self.guild.voice_client is not None
