@@ -8,6 +8,7 @@ from lavalink.events import TrackStartEvent, QueueEndEvent, NodeConnectedEvent, 
 import json
 import asyncio
 import re
+from typing import Union, List, Any
 from assets.logs.logger import music_logger as logger, music_data_logger, debug_logger
 from assets.music.lavalinkvoiceclient import LavalinkVoiceClient
 from assets.music.musicplayerview import MusicPlayerView
@@ -179,28 +180,53 @@ class MusicCog(commands.Cog):
         
         # Save the updated music data
         self.save_music_data()
-
-    def add_music_data(self, guild_id: int, music_text_channel_id: int, music_message_id: int, default_volume: int = 50):
-        """Add music data for the specified guild. If the guild already exists, update the data."""
-        self.music_data[str(guild_id)] = {
-            'guild_id': guild_id,
-            'music_text_channel_id': music_text_channel_id,
-            'music_message_id': music_message_id,
-            'default_volume': default_volume
-        }
+    
+    def add_music_data(self, guild_id: int, keys: Union[str, List[str]], values: Union[Any, List[Any]], root_keys: Union[str, List[str]] = None):
+        """
+        Adds key-value pairs to the music_data dictionary, and saves it in `music_data.json`.
+        
+        Args:
+            guild_id - The guild ID to add the key-value pair to.
+            keys - The key to add or a list of keys to add. Can either be string or a list of strings.
+            values - The value to add or a list of values to add. If keys is a list, values must be a list of the same length.
+            root_key - The root key to add the key-value pair to. Can be None, string or a list of strings.
+                     - If None, the key-value pair is added to the root key = [str(guild_id)].
+                     - If string, the key-value pair is added to the root key = [str(guild_id)][root_key].
+                     - If list of strings, the key-value pair is added to the root key = [str(guild_id)][root_key[0]][root_key[1]]...
+        """
+        def get_nested_dict(root_keys):
+            """Helper function to get (or create) the nested dictionary for a list of root keys."""
+            # Ensure guild exists in music data, otherwise create it
+            current = self.music_data.setdefault(str(guild_id), {})
+            # Iterate through root keys to get target dictionary, while creating keys as needed
+            for key in root_keys:
+                current = current.setdefault(key, {})
+            return current
+        
+        # Get traget dictionary with root_keys, while creating keys as needed
+        if root_keys is None:
+            target_dict = self.music_data.setdefault(str(guild_id), {})
+        elif isinstance(root_keys, str):
+            target_dict = get_nested_dict([root_keys])
+        elif isinstance(root_keys, list):
+            target_dict = get_nested_dict(root_keys)
+        
+        # Add key-value pair
+        if isinstance(keys, list):
+            if not isinstance(values, list) or len(keys) != len(values):
+                raise ValueError("If key is a list, value must also be a list of the same length.")
+            target_dict.update(zip(keys, values))
+        else:
+            target_dict[keys] = values
         music_data_logger.info(f'Music data for guild {guild_id} added/updated.')
+        
+        # Save music data
         self.save_music_data()
     
-    def get_music_data(self, guild_id: int):
+    def get_guild_music_data(self, guild_id: int):
         """
         Get music data for the specified guild.
-        Returns music data for the specified guild in the format of a dictionary:
-        {
-            'guild_id': 1234567890,
-            'music_text_channel_id': 1234567890,
-            'music_message_id': 1234567890,
-            'default_volume': 50
-        }
+        Returns music data for the specified guild in the format of a dictionary.
         If the guild does not exist, return None.
         """
         return self.music_data.get(str(guild_id))
@@ -223,7 +249,11 @@ class MusicCog(commands.Cog):
         music_message = await music_text_channel.send(message_text, embed=embed, view=musicplayerview)
 
         # Add guild music data to music data and save in `music_data.json`
-        self.add_music_data(music_text_channel.guild.id, music_text_channel.id, music_message.id)
+        self.add_music_data(
+            guild_id=music_text_channel.guild.id,
+            keys=['guild_id', 'music_text_channel_id', 'music_message_id'],
+            values=[music_text_channel.guild.id, music_text_channel.id, music_message.id],
+        )
 
         return music_message
     
@@ -243,16 +273,16 @@ class MusicCog(commands.Cog):
     async def update_music_embed(self, guild: discord.Guild):
         """Update the music message embed in the music text channel."""
         # get guild music data
-        guild_music_data = self.get_music_data(guild.id)
+        guild_music_data = self.get_guild_music_data(guild.id)
 
         # get music text channel from ID
-        music_text_channel = guild.get_channel(guild_music_data['music_text_channel_id']) if guild_music_data else None
+        music_text_channel = guild.get_channel(guild_music_data.get('music_text_channel_id')) if guild_music_data else None
         if not music_text_channel:
             return
 
         # get music message from ID
         try:
-            music_message = await music_text_channel.fetch_message(guild_music_data['music_message_id']) if music_text_channel else None
+            music_message = await music_text_channel.fetch_message(guild_music_data.get('music_message_id')) if music_text_channel else None
             if not music_message:
                 return
         except Exception as e:
@@ -348,10 +378,10 @@ class MusicCog(commands.Cog):
         # Iterate through all guilds in `music_data.json`
         for guild_music_data in self.music_data.values():
             # Get guild from guild ID
-            guild = self.bot.get_guild(guild_music_data['guild_id'])
+            guild = self.bot.get_guild(guild_music_data.get('guild_id'))
 
             # Get music text channel from ID
-            music_text_channel = guild.get_channel(guild_music_data['music_text_channel_id']) if guild else None
+            music_text_channel = guild.get_channel(guild_music_data.get('music_text_channel_id')) if guild else None
 
             # If music text channel does not exist skip iteration
             # Don't remove from music data because music data contains other information that should not be deleted
@@ -361,12 +391,12 @@ class MusicCog(commands.Cog):
 
             # get music message from ID
             try:
-                music_message = await music_text_channel.fetch_message(guild_music_data['music_message_id']) if music_text_channel else None
+                music_message = await music_text_channel.fetch_message(guild_music_data.get('music_message_id')) if music_text_channel else None
             except Exception as e:
                 music_message = None
             
             # delete all messages in music text channel that are not the music message
-            music_message_id = guild_music_data['music_message_id']
+            music_message_id = guild_music_data.get('music_message_id')
             await music_text_channel.purge(check=lambda m: m.id != music_message_id, bulk=True)
 
             # If music message does not exist, create it. Otherwise, set it to default
@@ -400,18 +430,18 @@ class MusicCog(commands.Cog):
         In player interactions, use `interaction.message.edit(view=self)`.
         """
         # Get music data for this guild in case it exists, otherwise return
-        guild_music_data = self.get_music_data(guild_id)
+        guild_music_data = self.get_guild_music_data(guild_id)
         if not guild_music_data:
             return
 
         # Get music text channel from ID if it exists, otherwise return
-        music_text_channel = self.bot.get_channel(guild_music_data['music_text_channel_id'])
+        music_text_channel = self.bot.get_channel(guild_music_data.get('music_text_channel_id'))
         if not music_text_channel:
             return
 
         # get music message from ID if it exists, otherwise return
         try:
-            music_message = await music_text_channel.fetch_message(guild_music_data['music_message_id'])
+            music_message = await music_text_channel.fetch_message(guild_music_data.get('music_message_id'))
             if not music_message:
                 return
         except Exception as e:
@@ -494,8 +524,8 @@ class MusicCog(commands.Cog):
                     return   
             else:
                 # inform user that last track must be from spotify for now
-                guild_music_data = self.get_music_data(guild_id)
-                music_text_channel = self.bot.get_channel(guild_music_data['music_text_channel_id']) if guild_music_data else None
+                guild_music_data = self.get_guild_music_data(guild_id)
+                music_text_channel = self.bot.get_channel(guild_music_data.get('music_text_channel_id')) if guild_music_data else None
                 if music_text_channel:
                     await music_text_channel.send(embed=warning_embed('`AutoPlay` only works if last music track is from spotify.'), delete_after=15)      
             
@@ -539,8 +569,8 @@ class MusicCog(commands.Cog):
             return
         
         # Get music data for this guild in case it exists, otherwise None
-        guild_music_data = self.get_music_data(message.guild.id)
-        music_text_channel_id = guild_music_data['music_text_channel_id'] if guild_music_data else None
+        guild_music_data = self.get_guild_music_data(message.guild.id)
+        music_text_channel_id = guild_music_data.get('music_text_channel_id') if guild_music_data else None
 
         # Check is message is from a music text channel, and not from VibeBot
         if music_text_channel_id == message.channel.id and message.author != self.bot.user:
@@ -825,8 +855,8 @@ class MusicCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         # Get guild music data and music text channel id
-        guild_music_data = self.get_music_data(interaction.guild.id)
-        music_text_channel_id = guild_music_data['music_text_channel_id'] if guild_music_data else None
+        guild_music_data = self.get_guild_music_data(interaction.guild.id)
+        music_text_channel_id = guild_music_data.get('music_text_channel_id') if guild_music_data else None
 
         # Get music text channel in case it exists in current guild, otherwise None
         music_text_channel = interaction.guild.get_channel(music_text_channel_id)
