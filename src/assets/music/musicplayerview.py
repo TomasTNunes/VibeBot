@@ -231,7 +231,7 @@ class MusicPlayerView(View):
         
         Lower volume by 10. Minimum is 0.
         It does not needs to update MusicPlayerView.
-        It needs to update music message embed.
+        It needs to update music message embed, if player is playing (cause volume doesnt show if player only connected not playing).
         """
         # Get guild player
         player = self.cog.lavalink.player_manager.get(self.guild.id)
@@ -257,7 +257,8 @@ class MusicPlayerView(View):
         await player.set_volume(volume)
 
         # Update music message embed
-        await self.cog.update_music_embed(self.guild)
+        if player.is_playing:
+            await self.cog.update_music_embed(self.guild)
 
     async def previous_track_callback(self, interaction: discord.Interaction):
         """
@@ -344,7 +345,7 @@ class MusicPlayerView(View):
         
         Elevate volume by 10. Maximum is 200.
         It does not needs to update MusicPlayerView.
-        It needs to update music message embed.
+        It needs to update music message embed, if player is playing (cause volume doesnt show if player only connected not playing).
         """
         # Get guild player
         player = self.cog.lavalink.player_manager.get(self.guild.id)
@@ -370,7 +371,8 @@ class MusicPlayerView(View):
         await player.set_volume(volume)
 
         # Update music message embed
-        await self.cog.update_music_embed(self.guild)
+        if player.is_playing:
+            await self.cog.update_music_embed(self.guild)
     
     async def loop_callback(self, interaction: discord.Interaction):
         """
