@@ -56,7 +56,7 @@ class LavalinkVoiceClient(discord.VoiceProtocol):
             await self.disconnect(force=True)
 
             # Send Warning to music text channel that bot has been disconnected for being idle
-            guild_music_data = self.cog.get_music_data(self.guild_id)
+            guild_music_data = self.cog.get_guild_music_data(self.guild_id)
             music_text_channel = self.guild.get_channel(guild_music_data['music_text_channel_id']) if guild_music_data else None
             if music_text_channel:
                 await music_text_channel.send(embed=warning_embed("I left the voice channel due to inactivity."), 
@@ -109,7 +109,7 @@ class LavalinkVoiceClient(discord.VoiceProtocol):
         """
         # ensure there is a player_manager when creating a new voice_client
         player = self.lavalink.player_manager.create(guild_id=self.guild_id)
-        await player.set_volume(self.cog.get_music_data(self.guild_id)['default_volume'])
+        await player.set_volume(self.cog.get_guild_music_data(self.guild_id).get('default_volume', 50))
         await self.channel.guild.change_voice_state(channel=self.channel, self_mute=self_mute, self_deaf=self_deaf)
 
         ##########################################
