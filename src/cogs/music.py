@@ -831,11 +831,10 @@ class MusicCog(commands.Cog):
         else:
             await interaction.response.send_message(embed=error_embed(f'An unexpected error has occured: {error}'), ephemeral=True)
 
-
     @app_commands.command(name='setup', description='Create music text channel')
     @app_commands.guild_only()  # Only allow command in guilds, not in private messages
     @app_commands.checks.cooldown(1, 10.0)  # Command can be used once every 10 seconds
-    @app_commands.checks.has_permissions(manage_channels=True)  # Member must have MANAGE_CHANNELS
+    @app_commands.checks.has_permissions(manage_channels=True, manage_guild=True)  # Member must have the permissions
     @app_commands.checks.bot_has_permissions(
         manage_channels=True,
         manage_roles=True,
@@ -889,10 +888,11 @@ class MusicCog(commands.Cog):
         # Infom user music text channel was created
         await interaction.followup.send(embed=success_embed(f'Music text channel created: {music_text_channel.mention}'), ephemeral=True) 
     
-    @app_commands.command(name='volume', description='Chnage bot\'s audio volume')
+    @app_commands.command(name='volume', description='Change bot\'s audio volume')
     @app_commands.guild_only()  # Only allow command in guilds, not in private messages
     @app_commands.checks.cooldown(1, 3.0)  # Command can be used once every 3 seconds
     async def volume(self, interaction: discord.Interaction, volume: app_commands.Range[int, 0, 200]):
+        """Change bot's audio volume."""
         # Prevents the interaction from timing out
         await interaction.response.defer(ephemeral=True)
 
@@ -914,6 +914,25 @@ class MusicCog(commands.Cog):
 
         # Send success message
         await interaction.followup.send(embed=success_embed(f'Volume set to `{volume}%`'), ephemeral=True)
+    
+    @app_commands.command(name='default-volume', description='Set the defauft volume when the bot joins a voice channel')
+    @app_commands.guild_only()  # Only allow command in guilds, not in private messages
+    @app_commands.checks.cooldown(1, 5.0)  # Command can be used once every 3 seconds
+    @app_commands.checks.has_permissions(manage_guild=True)  # Member must have the permissions
+    async def set_default_volume(self, interaction: discord.Interaction, volume: app_commands.Range[int, 10, 200]):
+        """Change bot's default audio volume when the bot joins a voice channel."""
+        # Prevents the interaction from timing out
+        await interaction.response.defer(ephemeral=True)
+
+        # Get guild music data and set default volume
+        self.add_music_data(
+            guild_id=interaction.guild.id,
+            keys='default_volume',
+            values=volume
+        )
+
+        # Send success message
+        await interaction.followup.send(embed=success_embed(f'Default volume set to `{volume}%`'), ephemeral=True)
 
 async def setup(bot):
     # Add MusicCog to bot instance
