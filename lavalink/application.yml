@@ -3,8 +3,8 @@
 ############################################################################################################
 
 server: # REST and WS server
-  port: 2333
-  address: 0.0.0.0
+  port:
+  address:
   http2:
     enabled: false # Whether to enable HTTP/2 support
 
@@ -88,7 +88,7 @@ lavalink:
     - dependency: "dev.lavalink.youtube:youtube-plugin:1.11.5"
       snapshot: false # Set to true if you want to use a snapshot version.
   server:
-    password: "youshallnotpass"
+    password:
     sources:
       # The default Youtube source is now deprecated and won't receive further updates. Please use https://github.com/lavalink-devs/youtube-source#plugin instead.
       youtube: false

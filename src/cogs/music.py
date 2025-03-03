@@ -64,7 +64,7 @@ class MusicCog(commands.Cog):
 
                     # Add node to Lavalink client
                     self.bot.lavalink.add_node(
-                        host='localhost', port=2333, password='youshallnotpass',
+                        host=os.getenv('LAVALINK_ADDRESS'), port=os.getenv('LAVALINK_PORT'), password=os.getenv('LAVALINK_PASSWORD'),
                         region='eu', name='music-node'
                     )
                     logger.info('Lavalink client node added.')
