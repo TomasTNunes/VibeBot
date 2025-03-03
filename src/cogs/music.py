@@ -889,8 +889,9 @@ class MusicCog(commands.Cog):
         await interaction.followup.send(embed=success_embed(f'Music text channel created: {music_text_channel.mention}'), ephemeral=True) 
     
     @app_commands.command(name='volume', description='Change bot\'s audio volume')
-    @app_commands.guild_only()  # Only allow command in guilds, not in private messages
-    @app_commands.checks.cooldown(1, 3.0)  # Command can be used once every 3 seconds
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 2.0)
+    @app_commands.checks.bot_has_permissions(embed_links=True)
     async def volume(self, interaction: discord.Interaction, volume: app_commands.Range[int, 0, 200]):
         """Change bot's audio volume."""
         # Prevents the interaction from timing out
@@ -916,9 +917,10 @@ class MusicCog(commands.Cog):
         await interaction.followup.send(embed=success_embed(f'Volume set to `{volume}%`'), ephemeral=True)
     
     @app_commands.command(name='default-volume', description='Set the defauft volume when the bot joins a voice channel')
-    @app_commands.guild_only()  # Only allow command in guilds, not in private messages
-    @app_commands.checks.cooldown(1, 5.0)  # Command can be used once every 3 seconds
-    @app_commands.checks.has_permissions(manage_guild=True)  # Member must have the permissions
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 10.0)
+    @app_commands.checks.has_permissions(manage_guild=True)
+    @app_commands.checks.bot_has_permissions(embed_links=True)
     async def set_default_volume(self, interaction: discord.Interaction, volume: app_commands.Range[int, 10, 200]):
         """Change bot's default audio volume when the bot joins a voice channel."""
         # Prevents the interaction from timing out
@@ -933,6 +935,60 @@ class MusicCog(commands.Cog):
 
         # Send success message
         await interaction.followup.send(embed=success_embed(f'Default volume set to `{volume}%`'), ephemeral=True)
+    
+    @app_commands.command(name='default-autoplay', description='Enable or Disable autoplay by default when the bot joins a voice channel')
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 10.0)
+    @app_commands.checks.has_permissions(manage_guild=True)
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    @app_commands.choices(state=[
+    app_commands.Choice(name="Enable", value=1),
+    app_commands.Choice(name="Disable", value=0)
+    ])
+    async def set_default_autoplay(self, interaction: discord.Interaction, state: app_commands.Choice[int]):
+        """Enable or Disable autoplay by default when the bot joins a voice channel."""
+        # Prevents the interaction from timing out
+        await interaction.response.defer(ephemeral=True)
+
+        # Get guild music data and set default volume
+        self.add_music_data(
+            guild_id=interaction.guild.id,
+            keys='default_autoplay',
+            values=bool(state.value)
+        )
+
+        # Send success message
+        if state.value:
+            await interaction.followup.send(embed=success_embed(f'Default AutoPlay `enabled`'), ephemeral=True)
+        else:
+            await interaction.followup.send(embed=success_embed(f'Default AutoPlay `disabled`'), ephemeral=True)
+    
+    @app_commands.command(name='default-loop', description='Enable or Disable loop queue by default when the bot joins a voice channel')
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 10.0)
+    @app_commands.checks.has_permissions(manage_guild=True)
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    @app_commands.choices(state=[
+    app_commands.Choice(name="Enable", value=1),
+    app_commands.Choice(name="Disable", value=0)
+    ])
+    async def set_default_loop(self, interaction: discord.Interaction, state: app_commands.Choice[int]):
+        """Enable or Disable loop queue by default when the bot joins a voice channel."""
+        # Prevents the interaction from timing out
+        await interaction.response.defer(ephemeral=True)
+
+        # Get guild music data and set default volume
+        self.add_music_data(
+            guild_id=interaction.guild.id,
+            keys='default_loop',
+            values=bool(state.value)
+        )
+
+        # Send success message
+        if state.value:
+            await interaction.followup.send(embed=success_embed(f'Default Loop Queue `enabled`'), ephemeral=True)
+        else:
+            await interaction.followup.send(embed=success_embed(f'Default Loop Queue `disabled`'), ephemeral=True)
 
 async def setup(bot):
     # Add MusicCog to bot instance

@@ -109,7 +109,22 @@ class LavalinkVoiceClient(discord.VoiceProtocol):
         """
         # ensure there is a player_manager when creating a new voice_client
         player = self.lavalink.player_manager.create(guild_id=self.guild_id)
+
+        ##########################################
+        ####### SET PLAYER DEFAULT SETTINGS ######
+        ##########################################
+
+        # Set default volume
         await player.set_volume(self.cog.get_guild_music_data(self.guild_id).get('default_volume', 50))
+
+        # Set default autoplay
+        player.store(key="autoplay", value=self.cog.get_guild_music_data(self.guild_id).get('default_autoplay', False))
+
+        # Set default loop
+        if self.cog.get_guild_music_data(self.guild_id).get('default_loop', False):
+            player.set_loop(player.LOOP_QUEUE)
+
+        # Connect
         await self.channel.guild.change_voice_state(channel=self.channel, self_mute=self_mute, self_deaf=self_deaf)
 
         ##########################################
