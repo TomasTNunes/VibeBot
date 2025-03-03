@@ -484,19 +484,20 @@ class MusicCog(commands.Cog):
         # if autoplay is on, add recommended track
         # Create query based only on previous track. Only if this track from spotify
         # No need to update embed as add_to_queue will update it, unless add_to_queue fails.
-        track = event.player.fetch(key='previous_track', default=None)
-        if event.player.fetch(key='autoplay', default=False) and track and track.source_name == 'spotify':
-            query = f'seed_artists={track.plugin_info['artistUrl'].split('/')[-1]}&seed_tracks={track.identifier}&limit=1'
-            add_to_queue_check = await self.add_to_queue(query, self.bot.user, voice_client.guild, search_autoplay=True)
-            # check if successful
-            if not add_to_queue_check:
-                return
-        else:
-            # inform user that last track must be from spotify for now
-            guild_music_data = self.get_music_data(guild_id)
-            music_text_channel = self.bot.get_channel(guild_music_data['music_text_channel_id']) if guild_music_data else None
-            if music_text_channel:
-                await music_text_channel.send(embed=warning_embed('`AutoPlay` only works if last music track is from spotify.'), delete_after=15)
+        if event.player.fetch(key='autoplay', default=False):
+            track = event.player.fetch(key='previous_track', default=None)
+            if track and track.source_name == 'spotify':
+                query = f'seed_artists={track.plugin_info['artistUrl'].split('/')[-1]}&seed_tracks={track.identifier}&limit=1'
+                add_to_queue_check = await self.add_to_queue(query, self.bot.user, voice_client.guild, search_autoplay=True)
+                # check if successful
+                if not add_to_queue_check:
+                    return   
+            else:
+                # inform user that last track must be from spotify for now
+                guild_music_data = self.get_music_data(guild_id)
+                music_text_channel = self.bot.get_channel(guild_music_data['music_text_channel_id']) if guild_music_data else None
+                if music_text_channel:
+                    await music_text_channel.send(embed=warning_embed('`AutoPlay` only works if last music track is from spotify.'), delete_after=15)      
             
         # Update music message embed
         await self.update_music_embed(voice_client.guild)
@@ -857,7 +858,32 @@ class MusicCog(commands.Cog):
 
         # Infom user music text channel was created
         await interaction.followup.send(embed=success_embed(f'Music text channel created: {music_text_channel.mention}'), ephemeral=True) 
+    
+    @app_commands.command(name='volume', description='Chnage bot\'s audio volume')
+    @app_commands.guild_only()  # Only allow command in guilds, not in private messages
+    @app_commands.checks.cooldown(1, 3.0)  # Command can be used once every 3 seconds
+    async def volume(self, interaction: discord.Interaction, volume: app_commands.Range[int, 0, 200]):
+        # Prevents the interaction from timing out
+        await interaction.response.defer(ephemeral=True)
 
+        # Check if command should continue using check_and_join()
+        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=False)
+        if check:
+            await interaction.followup.send(embed=error_embed(check), ephemeral=True)
+            return
+
+        # Get player for this guild
+        player = self.lavalink.player_manager.get(interaction.guild.id)
+
+        # Set player volume
+        await player.set_volume(volume)
+
+        # Update music message embed
+        if player.is_playing:
+            await self.update_music_embed(interaction.guild)
+
+        # Send success message
+        await interaction.followup.send(embed=success_embed(f'Volume set to `{volume}%`'), ephemeral=True)
 
 async def setup(bot):
     # Add MusicCog to bot instance
