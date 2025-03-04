@@ -8,7 +8,8 @@ from lavalink.events import TrackStartEvent, QueueEndEvent, NodeConnectedEvent, 
 import json
 import asyncio
 import re
-from typing import Union, List, Any
+import unicodedata
+from typing import Union, List, Any, Optional
 from assets.logs.logger import music_logger as logger, music_data_logger, debug_logger
 from assets.music.lavalinkvoiceclient import LavalinkVoiceClient
 from assets.music.musicplayerview import MusicPlayerView
@@ -141,7 +142,7 @@ class MusicCog(commands.Cog):
     def load_music_data(self):
         """Load music data from the `music_data.json` file if it exists, otherwise return and save an empty dictionary."""
         try:
-            with open(self.music_data_path, 'r') as file:
+            with open(self.music_data_path, 'r', encoding="utf-8") as file:
                 data = json.load(file)
                 logger.info(f'Music data loaded from `music_data.json`.')
                 music_data_logger.info(f'Music data loaded from `music_data.json`.')
@@ -157,12 +158,12 @@ class MusicCog(commands.Cog):
     
     def save_music_data(self):
         """Save music data to the `music_data.json` file."""
+        # Save new self.music_data
         try:
-            with open(self.music_data_path, 'w') as file:
-                json.dump(self.music_data, file, indent=4)
+            with open(self.music_data_path, 'w', encoding="utf-8") as file:
+                json.dump(self.music_data, file, indent=4, ensure_ascii=False)
                 music_data_logger.info(f'Music data saved to `music_data.json`.')
         except Exception as e:
-            logger.error(f'Failed to save music data: {e}')
             music_data_logger.error(f'Failed to save music data: {e}')
     
     def cleanup_music_data(self):
@@ -194,7 +195,7 @@ class MusicCog(commands.Cog):
                      - If string, the key-value pair is added to the root key = [str(guild_id)][root_key].
                      - If list of strings, the key-value pair is added to the root key = [str(guild_id)][root_key[0]][root_key[1]]...
         """
-        def get_nested_dict(root_keys):
+        def get_nested_dict(root_keys: List[str]):
             """Helper function to get (or create) the nested dictionary for a list of root keys."""
             # Ensure guild exists in music data, otherwise create it
             current = self.music_data.setdefault(str(guild_id), {})
@@ -227,9 +228,9 @@ class MusicCog(commands.Cog):
         """
         Get music data for the specified guild.
         Returns music data for the specified guild in the format of a dictionary.
-        If the guild does not exist, return None.
+        If the guild does not exist, return empty dictionary {}.
         """
-        return self.music_data.get(str(guild_id))
+        return self.music_data.get(str(guild_id), {})
 
     ######################################
     ######## MUSIC TEXT CHANNEL ##########
@@ -509,7 +510,7 @@ class MusicCog(commands.Cog):
 
         # if voice client exists and is of type LavalinkVoiceClient, start idle timer task
         if voice_client and isinstance(voice_client, LavalinkVoiceClient):
-            await voice_client.start_idle_timer()
+            await voice_client.start_idle_timer()    
         
         # if autoplay is on, add recommended track
         # Create query based only on previous track. Only if this track from spotify
@@ -527,7 +528,7 @@ class MusicCog(commands.Cog):
                 guild_music_data = self.get_guild_music_data(guild_id)
                 music_text_channel = self.bot.get_channel(guild_music_data.get('music_text_channel_id')) if guild_music_data else None
                 if music_text_channel:
-                    await music_text_channel.send(embed=warning_embed('`AutoPlay` only works if last music track is from spotify.'), delete_after=15)      
+                    await music_text_channel.send(embed=warning_embed('`AutoPlay` only works if last music track is from spotify.'), delete_after=15)  
             
         # Update music message embed
         await self.update_music_embed(voice_client.guild)
@@ -886,12 +887,15 @@ class MusicCog(commands.Cog):
         await self.create_music_message(music_text_channel)
 
         # Infom user music text channel was created
-        await interaction.followup.send(embed=success_embed(f'Music text channel created: {music_text_channel.mention}'), ephemeral=True) 
+        await interaction.followup.send(embed=success_embed(f'Music text channel created: {music_text_channel.mention}')) 
     
     @app_commands.command(name='volume', description='Change bot\'s audio volume')
     @app_commands.guild_only()
     @app_commands.checks.cooldown(1, 2.0)
     @app_commands.checks.bot_has_permissions(embed_links=True)
+    @app_commands.describe(
+        volume="Set the player volume (0-200)"
+    )
     async def volume(self, interaction: discord.Interaction, volume: app_commands.Range[int, 0, 200]):
         """Change bot's audio volume."""
         # Prevents the interaction from timing out
@@ -921,6 +925,9 @@ class MusicCog(commands.Cog):
     @app_commands.checks.cooldown(1, 10.0)
     @app_commands.checks.has_permissions(manage_guild=True)
     @app_commands.checks.bot_has_permissions(embed_links=True)
+    @app_commands.describe(
+        volume="Set the default player volume (0-200)"
+    )
     async def set_default_volume(self, interaction: discord.Interaction, volume: app_commands.Range[int, 10, 200]):
         """Change bot's default audio volume when the bot joins a voice channel."""
         # Prevents the interaction from timing out
@@ -934,7 +941,7 @@ class MusicCog(commands.Cog):
         )
 
         # Send success message
-        await interaction.followup.send(embed=success_embed(f'Default volume set to `{volume}%`'), ephemeral=True)
+        await interaction.followup.send(embed=success_embed(f'Default volume set to `{volume}%`'))
     
     @app_commands.command(name='default-autoplay', description='Enable or Disable autoplay by default when the bot joins a voice channel')
     @app_commands.guild_only()
@@ -959,9 +966,9 @@ class MusicCog(commands.Cog):
 
         # Send success message
         if state.value:
-            await interaction.followup.send(embed=success_embed(f'Default AutoPlay `enabled`'), ephemeral=True)
+            await interaction.followup.send(embed=success_embed(f'Default AutoPlay `enabled`'))
         else:
-            await interaction.followup.send(embed=success_embed(f'Default AutoPlay `disabled`'), ephemeral=True)
+            await interaction.followup.send(embed=success_embed(f'Default AutoPlay `disabled`'))
     
     @app_commands.command(name='default-loop', description='Enable or Disable loop queue by default when the bot joins a voice channel')
     @app_commands.guild_only()
@@ -986,9 +993,124 @@ class MusicCog(commands.Cog):
 
         # Send success message
         if state.value:
-            await interaction.followup.send(embed=success_embed(f'Default Loop Queue `enabled`'), ephemeral=True)
+            await interaction.followup.send(embed=success_embed(f'Default Loop Queue `enabled`'))
         else:
-            await interaction.followup.send(embed=success_embed(f'Default Loop Queue `disabled`'), ephemeral=True)
+            await interaction.followup.send(embed=success_embed(f'Default Loop Queue `disabled`'))
+    
+    @app_commands.command(name='pl-add', description='Add playlist button to music message')
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 5.0)
+    @app_commands.checks.has_permissions(manage_guild=True)
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    @app_commands.describe(
+        name="Playlist name (1-50 characters)",
+        url="Playlist url (Spotify, Youtube, Soundcloud, AppleMusic, etc.)",
+        button_name="Playlist button name (1-8 characters)",
+        emoji="Playlist button emoji"
+    )
+    async def set_playlist_add(self, interaction: discord.Interaction, name: app_commands.Range[str, 1, 50], url: str, button_name: Optional[app_commands.Range[str, 1, 8]] = None, emoji: Optional[str] = None):
+        """Add playlist button to music message."""
+        # Prevents the interaction from timing out
+        await interaction.response.defer(ephemeral=True)
+
+        # Check if all inputs contain only ASCII characters
+        if not name.isascii():
+            await interaction.followup.send(embed=error_embed("Playlist name must contain only ASCII characters."), ephemeral=True)
+            return
+        if not url.isascii():
+            await interaction.followup.send(embed=error_embed("Playlist URL must contain only ASCII characters."), ephemeral=True)
+            return
+        if button_name and not button_name.isascii():
+            await interaction.followup.send(embed=error_embed("Button name must contain only ASCII characters."), ephemeral=True)
+            return
+        
+        # Get Playlists dict from guild music data
+        playlists_dict = self.get_guild_music_data(interaction.guild.id).get('playlists', {})
+
+        # Verify there are less than 10 playlists
+        if len(playlists_dict) >= 10:
+            await interaction.followup.send(embed=error_embed("Maximum number of playlists reached (10).\
+                                                                      \nPlease remove a playlist with `/pl-remove` before adding a new one."), 
+                                                                      ephemeral=True)
+            return
+
+        # Verify playlist name doesn't already exist
+        if name in playlists_dict:
+            await interaction.followup.send(embed=error_embed(f"Playlist with name `{name}` already exists."), ephemeral=True)
+            return
+
+        # Validate URL format
+        if not url_rx.match(url):
+            await interaction.followup.send(embed=error_embed("Invalid URL format. Please provide a valid URL."), ephemeral=True)
+            return
+
+        # Verify that either emoji or button_name exists
+        if not emoji and not button_name:
+            await interaction.followup.send(embed=error_embed("At least one of `button_name` or `emoji` must be provided as input for this command."), ephemeral=True)
+            return
+        
+        # Auxiliar function to validate emoji
+        def is_valid_emoji(interaction: discord.Interaction, emoji: str):
+            """Checks if the emoji is valid (Unicode or custom guild emoji)."""
+            try:
+                # Check if the emoji is a custom emoji
+                if emoji.startswith('<:') and emoji.endswith('>'):
+                    # Extract the emoji ID and name
+                    emoji_id = int(emoji.split(':')[2][:-1])
+                    emoji_name = emoji.split(':')[1]
+
+                    # Check if the emoji exists in the guild
+                    if discord.utils.get(interaction.guild.emojis, id=emoji_id):
+                        return {'unicode': False, 'id': emoji_id, 'name': emoji_name}
+                    return False
+                
+                # Check if the emoji is a valid Unicode emoji
+                if len(emoji) == 1: # Single character emoji (e.g., 😊)
+                    if unicodedata.category(emoji) == "So":  # "So" stands for "Symbol, Other" (used for emojis)
+                        return {'unicode': True, 'name': emoji}
+                    return False
+                
+                if len(emoji) > 1: # Multi-character emoji (e.g., 👨‍👩‍👧‍👦)
+                    for char in emoji:
+                        if unicodedata.category(char) != "So":
+                            return False
+                    return {'unicode': True, 'name': emoji}
+                
+                return False
+
+            except Exception:
+                return False
+        
+        # Validate emoji (Unicode or custom guild emoji)
+        if emoji:
+            emoji_dict = is_valid_emoji(interaction, emoji)
+            if not emoji_dict:
+                await interaction.followup.send(embed=error_embed("Invalid emoji. Use a Unicode emoji or a custom emoji from this server."), ephemeral=True)
+                return
+
+        # Create keys and values list
+        keys = ['url']
+        values = [url]
+        if button_name:
+            keys.append('button_name')
+            values.append(button_name)
+        if emoji:
+            keys.append('emoji')
+            values.append(emoji_dict)
+
+        # Add playlist to guild music data
+        self.add_music_data(
+            guild_id=interaction.guild.id,
+            keys=keys,
+            values=values,
+            root_keys=['playlists', name]
+        )
+
+        # Update MusicPLayerView
+        await self.update_musicplayerview(interaction.guild.id)
+
+        # Send success message
+        await interaction.followup.send(embed=success_embed(f'Playlist **[{name}]({url})** added.'))
 
 async def setup(bot):
     # Add MusicCog to bot instance
