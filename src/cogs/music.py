@@ -10,7 +10,7 @@ import asyncio
 import re
 import unicodedata
 from typing import Union, List, Any, Optional
-from assets.logs.logger import music_logger as logger, music_data_logger, debug_logger
+from assets.logger.logger import music_logger as logger, music_data_logger, debug_logger
 from assets.music.lavalinkvoiceclient import LavalinkVoiceClient
 from assets.music.musicplayerview import MusicPlayerView
 from assets.replies.reply_embed import error_embed, success_embed, warning_embed, info_embed
