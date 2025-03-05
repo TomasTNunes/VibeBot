@@ -2,6 +2,7 @@
 .env
 
 # Lavalink
+Lavalink.jar
 lavalink/logs/
 plugins/
 
