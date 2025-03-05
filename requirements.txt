@@ -1,0 +1,5 @@
+# Python 3.13.2
+discord.py==2.5.0
+lavalink==5.9.0
+python-dotenv==1.0.1
+pre_commit==4.1.0

@@ -1,0 +1,18 @@
+# Environment variables
+.env
+
+# Lavalink
+Lavalink.jar
+lavalink/logs/
+plugins/
+
+# VibeBot Logs
+bot.log*
+music_data.log*
+debug.log*
+
+# Cache
+__pycache__/
+
+# VibeBot data
+music_data.json
