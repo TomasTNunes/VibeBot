@@ -1,0 +1,53 @@
+{
+    "832245107562250251": {
+        "guild_id": 832245107562250251,
+        "music_text_channel_id": 1346501688093180006,
+        "music_message_id": 1346501689154338847,
+        "default_volume": 60,
+        "default_autoplay": true,
+        "default_loop": false,
+        "playlists": {
+            "Playlist 1": {
+                "url": "https://open.spotify.com/playlist/79AgXqqLK7rGNjOGsTj9xz?si=d169d7ae097c4250",
+                "button_name": "PL1",
+                "emoji": {
+                    "unicode": true,
+                    "name": "🪩"
+                }
+            },
+            "Christmas": {
+                "url": "https://open.spotify.com/playlist/29RcHg7riJRjhiQ1kVLq1M?si=84f1523904e54998",
+                "emoji": {
+                    "unicode": true,
+                    "name": "🎄"
+                }
+            }
+        }
+    },
+    "832245107562250252": {
+        "guild_id": 832245107562250252,
+        "music_text_channel_id": 1346501688093180007,
+        "music_message_id": 1346501689154338848,
+        "default_volume": 55,
+        "default_autoplay": false,
+        "default_loop": true,
+        "playlists": {
+            "Playlist 1": {
+                "url": "https://open.spotify.com/playlist/79AgXqqLK7rGNjOGsTj9xz?si=d169d7ae097c4250",
+                "button_name": "PL1",
+                "emoji": {
+                    "unicode": true,
+                    "name": "🪩"
+                }
+            },
+            "Christmas": {
+                "url": "https://open.spotify.com/playlist/29RcHg7riJRjhiQ1kVLq1M?si=84f1523904e54998",
+                "emoji": {
+                    "unicode": false,
+                    "id": 1141211225947119736,
+                    "name": "custom_christmas_tree"
+                }
+            }
+        }
+    }
+}
