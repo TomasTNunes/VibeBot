@@ -1,10 +1,6 @@
 services:
   vibebot:
-    build:
-      # Use the root directory as the build context
-      context: ..
-      # Path to the Dockerfile inside the docker/ directory
-      dockerfile: docker/Dockerfile
+    image: ghcr.io/tomastnunes/vibebot:latest
     # Container name
     container_name: vibebot
     # Environement Variables
