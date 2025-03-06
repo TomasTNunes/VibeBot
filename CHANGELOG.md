@@ -1,6 +1,19 @@
 # CHANGELOG
 
 
+## v1.2.0 (2025-03-06)
+
+### Bug Fixes
+
+- Docker compose lavalink network set external
+  ([`108a8f6`](https://github.com/TomasTNunes/VibeBot/commit/108a8f669a187d8d072dccfa021afd81562f9eb6))
+
+### Features
+
+- Add arm64 support for docker
+  ([`2895e44`](https://github.com/TomasTNunes/VibeBot/commit/2895e44cae8896a049463d1b10339d94c6897e33))
+
+
 ## v1.1.0 (2025-03-06)
 
 ### Features
