@@ -3,13 +3,10 @@
 
 # Lavalink
 Lavalink.jar
-lavalink/logs/
 plugins/
 
-# VibeBot Logs
-bot.log*
-music_data.log*
-debug.log*
+# Logs
+logs/
 
 # Cache
 __pycache__/
