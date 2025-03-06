@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v1.2.1 (2025-03-06)
+
+### Bug Fixes
+
+- Fix docker entrypoint
+  ([`8745690`](https://github.com/TomasTNunes/VibeBot/commit/87456907db406909fc58b46ed8598bbfe761fe16))
+
+
 ## v1.2.0 (2025-03-06)
 
 ### Bug Fixes
