@@ -1,0 +1,91 @@
+# CHANGELOG
+
+
+## v1.0.0 (2025-03-06)
+
+### Features
+
+- Add control buttons for music message
+  ([`8b2dad7`](https://github.com/TomasTNunes/VibeBot/commit/8b2dad7340ec23e8a867bfe4e8feaa749b820852))
+
+- Add debug logs
+  ([`38a2644`](https://github.com/TomasTNunes/VibeBot/commit/38a2644dbb1d686b617ed280f992f540e90ef936))
+
+- Add default autoplay and default loop / commands.
+  ([`0fefb4c`](https://github.com/TomasTNunes/VibeBot/commit/0fefb4c05f841dad7f3f992bdf8c32ba5cb9dc20))
+
+- Add default volume / command
+  ([`ab3a935`](https://github.com/TomasTNunes/VibeBot/commit/ab3a935d19ff1ea0fe43fb7f89ed5b1d0c526e06))
+
+- Add info embed
+  ([`0a05e83`](https://github.com/TomasTNunes/VibeBot/commit/0a05e83e2bce92c3e926980b49f45641a314b665))
+
+- Add setup command; music cog app commands handle function; music_data logs
+  ([`e6631ae`](https://github.com/TomasTNunes/VibeBot/commit/e6631ae0621a16c407a3c0a94f8392e985c6a9cd))
+
+- Add volume / command; fix: autoplay warning message
+  ([`78005ae`](https://github.com/TomasTNunes/VibeBot/commit/78005aecea701f4faff7eca83f63ff5043f34df7))
+
+- Add_to_queue, update music message embed, volume and pause buttons
+  ([`09a841b`](https://github.com/TomasTNunes/VibeBot/commit/09a841b3c44a8a40a3b06840993ca326374f8b28))
+
+- Added stop, shuffle and autoplay callbacks. Implemented autoplay. Fix music embed for Lives. Other
+  small fixes
+  ([`fc88c4d`](https://github.com/TomasTNunes/VibeBot/commit/fc88c4dad3bb1e2107dd22d4ce4093e0d3001973))
+
+- Cleanup music channels at start and handle connect disconnect
+  ([`e1c884c`](https://github.com/TomasTNunes/VibeBot/commit/e1c884c9658671a7a1b65142e4fab7236134aa61))
+
+- Delete guild form music data when bot leaves guild
+  ([`20705fa`](https://github.com/TomasTNunes/VibeBot/commit/20705fa1c259028433bff0819502be1813a7b7ec))
+
+- Idle task for auto-disconnect and embed warnings
+  ([`7f68606`](https://github.com/TomasTNunes/VibeBot/commit/7f6860691277dc82eff4bae4e83f1bcf3a22e359))
+
+- Improve logs; music cog load and unload; music data handle; music join and check
+  ([`8ce3fc1`](https://github.com/TomasTNunes/VibeBot/commit/8ce3fc100e4648fe093d13b76fc66b65393b88a1))
+
+- Imrove add music data function
+  ([`5d1fe7b`](https://github.com/TomasTNunes/VibeBot/commit/5d1fe7b2c8758a80f0f5c01900c5cacd21b0764d))
+
+- Initialize bot
+  ([`fc47b7b`](https://github.com/TomasTNunes/VibeBot/commit/fc47b7ba9cbe2131b94ed14c48e6eb9638f3c7a6))
+
+- Lavalink docker compose yaml file
+  ([`b45e147`](https://github.com/TomasTNunes/VibeBot/commit/b45e14777a7ddda2d387007d307162d2596eb731))
+
+- Loop button callback
+  ([`5c408e1`](https://github.com/TomasTNunes/VibeBot/commit/5c408e1c8f476a3c1cd653a6d550849f817cd41f))
+
+- Next and previous track buttons callbacks
+  ([`810ef8e`](https://github.com/TomasTNunes/VibeBot/commit/810ef8e12a8e4f16f310c0962c822f37029ce1de))
+
+- Playlist add / command and buttons
+  ([`e5d7223`](https://github.com/TomasTNunes/VibeBot/commit/e5d72236710f4675fb079356f53289375838131d))
+
+- Playlist add/remove / commands
+  ([`3c92e17`](https://github.com/TomasTNunes/VibeBot/commit/3c92e173298c67af3e70507ecc1d9f4695e7e2be))
+
+- Run vibebot in docker ([#2](https://github.com/TomasTNunes/VibeBot/pull/2),
+  [`30a1cca`](https://github.com/TomasTNunes/VibeBot/commit/30a1ccad47d6979f7203bb756c28a47043bd58ad))
+
+* chore: rename lavalink docker compose yml
+
+* chore: update logs
+
+* chore: lavalink docker compose identation
+
+* feat: vibebot docker
+
+---------
+
+Co-authored-by: TomasTNunes <tomastrindadenunes@outlook.pt>
+
+- **lavalink**: Add applemuisc with default tokens/keys
+  ([`d6e1c26`](https://github.com/TomasTNunes/VibeBot/commit/d6e1c26a2f61ea10387bbf88a00d9e53ea78193e))
+
+- **Lavalink**: Add Lavalink and initial application.yml
+  ([`70fecd9`](https://github.com/TomasTNunes/VibeBot/commit/70fecd92386c04eb742ee0cc5e95797f854b9410))
+
+- **music**: Initialize music cogs
+  ([`590e1b4`](https://github.com/TomasTNunes/VibeBot/commit/590e1b47ff1b1f1256495961ee16c70296c58afb))
