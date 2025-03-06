@@ -27,4 +27,4 @@ services:
 networks:
   # Match lavalink network in order to have access to it
   lavalink:
-    name: lavalink
+    external: true
