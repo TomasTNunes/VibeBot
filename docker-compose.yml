@@ -1,0 +1,27 @@
+services:
+  vibebot:
+    image: ghcr.io/tomastnunes/vibebot:latest
+    # Container name
+    container_name: vibebot
+    # Environement Variables
+    environment:
+      # Discord Bot Token
+      - TOKEN=${TOKEN}
+      # Lavalink Connection Variables
+      - LAVALINK_ADDRESS=${LAVALINK_ADDRESS}
+      - LAVALINK_PORT=${LAVALINK_PORT}
+      - LAVALINK_PASSWORD=${LAVALINK_PASSWORD}
+    volumes:
+      # Mount the data directory. Persist data between restarts
+      - ./data/:/app/assets/data/
+      # Mount the logs directory. Persist logs between restarts
+      - ./logs/:/app/assets/logs/ 
+    # Automatically restart the container unless it is explicitly stopped
+    restart: unless-stopped
+    networks:
+      - lavalink
+
+networks:
+  # Match lavalink network in order to have access to it
+  lavalink:
+    name: lavalink
