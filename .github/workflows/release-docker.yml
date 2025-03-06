@@ -11,31 +11,25 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Required for semantic-release to work
+          fetch-depth: 0  # Fetch all history and tags
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.x"  # Replace with your Python version
+          python-version: "3.12.2"  # Replace with your Python version
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install semantic-release
+          pip install python-semantic-release
 
       - name: Bump version and update CHANGELOG
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Required for pushing changes
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Use the built-in token
         run: |
+          echo "Running semantic-release..."
           semantic-release -vv --config releaserc.toml version --no-vcs-release
-
-      - name: Get bumped version
-        id: get_version
-        run: |
-          # Extract the new version from the Git tag
-          NEW_VERSION=$(git describe --tags --abbrev=0)
-          echo "New version: $NEW_VERSION"
-          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+          echo "Version bump and CHANGELOG update complete."
 
   build-and-push-docker:
     name: Build and Push Docker Images
@@ -44,6 +38,19 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history and tags
+
+      - name: Get latest Git tag
+        id: get_tag
+        run: |
+          NEW_VERSION=$(git tag --sort=-creatordate | head -n 1)
+          if [ -z "$NEW_VERSION" ]; then
+            echo "Error: No Git tags found."
+            exit 1
+          fi
+          echo "Latest Git tag: $NEW_VERSION"
+          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -54,16 +61,37 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -t ghcr.io/${{ github.repository }}:${{ env.NEW_VERSION }} -f docker/Dockerfile .
+          # Convert repository name to lowercase
+          REPO_NAME=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          echo "Building Docker image with tag: $NEW_VERSION"
+          docker build -t ghcr.io/$REPO_NAME:${{ env.NEW_VERSION }} -f docker/Dockerfile .
+          if [ $? -ne 0 ]; then
+            echo "Docker build failed"
+            exit 1
+          fi
 
       - name: Push Docker image with version tag
         run: |
-          docker push ghcr.io/${{ github.repository }}:${{ env.NEW_VERSION }}
+          REPO_NAME=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          echo "Pushing Docker image with tag: $NEW_VERSION"
+          docker push ghcr.io/$REPO_NAME:${{ env.NEW_VERSION }}
+          if [ $? -ne 0 ]; then
+            echo "Docker push failed"
+            exit 1
+          fi
 
       - name: Tag Docker image as latest
         run: |
-          docker tag ghcr.io/${{ github.repository }}:${{ env.NEW_VERSION }} ghcr.io/${{ github.repository }}:latest
+          REPO_NAME=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          echo "Tagging Docker image as latest"
+          docker tag ghcr.io/$REPO_NAME:${{ env.NEW_VERSION }} ghcr.io/$REPO_NAME:latest
 
       - name: Push Docker image with latest tag
         run: |
-          docker push ghcr.io/${{ github.repository }}:latest
+          REPO_NAME=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          echo "Pushing Docker image with latest tag"
+          docker push ghcr.io/$REPO_NAME:latest
+          if [ $? -ne 0 ]; then
+            echo "Docker push (latest) failed"
+            exit 1
+          fi
