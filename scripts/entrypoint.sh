@@ -1,9 +1,9 @@
 #!/bin/sh
+# Run the application as the specified user (PUID/PGID) if provided
 if [ -n "$PUID" ] && [ -n "$PGID" ]; then
-    groupadd -g $PGID mygroup
-    useradd -u $PUID -g mygroup -s /bin/sh -m myuser
-    chown -R myuser:mygroup /app
-    exec su-exec myuser "$@"
+    groupadd -g "$PGID" vibebot
+    useradd -m -u "$PUID" -g "$PGID" vibebot
+    exec gosu vibebot "$@"
 else
     exec "$@"
 fi
