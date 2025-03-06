@@ -1,0 +1,15 @@
+# Cache
+__pycache__/
+
+# Environment variables
+.env
+
+# VibeBot data (passed as volume)
+music_data.json
+
+# Image assets (not necessary for running bot)
+assets/images/
+
+# VibeBot Logs (passed as volume)
+assets/logs/ 
+
