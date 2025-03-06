@@ -98,18 +98,6 @@
 - Run vibebot in docker ([#2](https://github.com/TomasTNunes/VibeBot/pull/2),
   [`30a1cca`](https://github.com/TomasTNunes/VibeBot/commit/30a1ccad47d6979f7203bb756c28a47043bd58ad))
 
-* chore: rename lavalink docker compose yml
-
-* chore: update logs
-
-* chore: lavalink docker compose identation
-
-* feat: vibebot docker
-
----------
-
-Co-authored-by: TomasTNunes <tomastrindadenunes@outlook.pt>
-
 - **lavalink**: Add applemuisc with default tokens/keys
   ([`d6e1c26`](https://github.com/TomasTNunes/VibeBot/commit/d6e1c26a2f61ea10387bbf88a00d9e53ea78193e))
 
