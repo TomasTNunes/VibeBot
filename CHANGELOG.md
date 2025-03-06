@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v1.1.0 (2025-03-06)
+
+### Features
+
+- Add ability to give user and group for docker
+  ([`acf3b00`](https://github.com/TomasTNunes/VibeBot/commit/acf3b00e7a452765e4d7a577d1e67d77384db815))
+
+
 ## v1.0.0 (2025-03-06)
 
 ### Features
