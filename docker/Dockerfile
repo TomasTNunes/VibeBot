@@ -1,9 +1,11 @@
 # Use an official Python runtime as the base image.
-# Slim image to minimize storage size.
 FROM python:3.12.2-slim
 
 # Set the working directory inside the container
 WORKDIR /app
+
+# Install gosu (alternative to su-exec)
+RUN apt-get update && apt-get install -y gosu && rm -rf /var/lib/apt/lists/*
 
 # Copy the requirements file into the container
 COPY requirements.txt .
