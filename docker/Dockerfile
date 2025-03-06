@@ -14,5 +14,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the application code
 COPY src/ .
 
+# Add script to switch user and run it
+COPY scripts/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]
+
 # Run the application
 CMD ["python", "main.py"]

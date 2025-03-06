@@ -9,6 +9,9 @@ services:
     container_name: vibebot
     # Environement Variables
     environment:
+      # User and Group to be used inside the container, otherwise it used root
+      - PUID=${PUID}
+      - PGID=${PGID}
       # Discord Bot Token
       - TOKEN=${TOKEN}
       # Lavalink Connection Variables
