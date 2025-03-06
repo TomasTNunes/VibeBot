@@ -5,6 +5,10 @@ from logging.handlers import RotatingFileHandler
 # Define the log file path
 log_directory_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../logs/')
 
+# Create the log directory if it doesn't exist
+if not os.path.exists(log_directory_path):
+    os.makedirs(log_directory_path)
+
 ############################################################################################################
 ######################################### CONFIGURE ROOT LOGGER ############################################
 ############################################################################################################

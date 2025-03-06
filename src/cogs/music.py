@@ -888,7 +888,7 @@ class MusicCog(commands.Cog):
     
     @app_commands.command(name='volume', description='Change bot\'s audio volume')
     @app_commands.guild_only()
-    @app_commands.checks.cooldown(1, 2.0)
+    @app_commands.checks.cooldown(1, 3.0)
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.describe(
         volume="Set the player volume (0-200)"
