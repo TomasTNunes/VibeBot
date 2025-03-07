@@ -323,7 +323,7 @@ class MusicCog(commands.Cog):
                             f'{str(item.duration // 60000).zfill(2)}:{item.duration % 60000 // 1000:02d}'
                         )
                 
-                # Add ttrack to queue list string
+                # Add track to queue list string
                 queue_list += (
                         f'\n**{position}.** '
                         f'{item.author} - {item.title}'
