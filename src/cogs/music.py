@@ -299,31 +299,40 @@ class MusicCog(commands.Cog):
             queue_time = 0
             queue_list = '__**Queue list:**__\n'
             if queue_size > 15:
-                queue_shown = player.queue[:15]
                 queue_list += f'\nAnd **{queue_size-15}** more...'
-            else:
-                queue_shown = player.queue
-            queue_shown_size = len(queue_shown)
 
-            for i,item in enumerate(queue_shown[::-1]):
+            for i,item in enumerate(player.queue[::-1]):
+                # get track position in queue
+                position = queue_size-i
+
+                # Accumulate queue time for non-streams
+                if not item.is_stream:
+                    queue_time += item.duration
+                
+                # For track beyond next 15 continue to next track
+                if position > 15:
+                    continue
+
+                # Set track duration string
                 if item.is_stream:
                     track_duration_str = 'LIVE'
                 else:
-                    queue_time += item.duration
                     track_duration_str = (
-                        f'{str(item.duration // 3600000).zfill(2)}:{(item.duration % 3600000) // 60000:02d}:{(item.duration % 60000) // 1000:02d}'
-                        if item.duration >= 3600000 else
-                        f'{str(item.duration // 60000).zfill(2)}:{item.duration % 60000 // 1000:02d}'
-                    )
+                            f'{str(item.duration // 3600000).zfill(2)}:{(item.duration % 3600000) // 60000:02d}:{(item.duration % 60000) // 1000:02d}'
+                            if item.duration >= 3600000 else
+                            f'{str(item.duration // 60000).zfill(2)}:{item.duration % 60000 // 1000:02d}'
+                        )
+                
+                # Add ttrack to queue list string
                 queue_list += (
-                    f'\n**{queue_shown_size - i}.** '
-                    f'{item.author} - {item.title}'
-                    f' - `{track_duration_str}`' 
-                    if item.is_seekable else
-                    f'\n**{queue_shown_size - i}.** '
-                    f'{item.uri}'
-                    f' - `{track_duration_str}`'
-                )
+                        f'\n**{position}.** '
+                        f'{item.author} - {item.title}'
+                        f' - `{track_duration_str}`' 
+                        if item.is_seekable else
+                        f'\n**{position}.** '
+                        f'{item.uri}'
+                        f' - `{track_duration_str}`'
+                    )
             
             # Get current track information
             current_track = player.current
