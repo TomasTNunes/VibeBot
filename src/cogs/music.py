@@ -1038,32 +1038,20 @@ class MusicCog(commands.Cog):
         def is_valid_emoji(interaction: discord.Interaction, emoji: str):
             """Checks if the emoji is valid (Unicode or custom guild emoji)."""
             try:
-                # Check if the emoji is a custom emoji
-                if emoji.startswith('<:') and emoji.endswith('>'):
-                    # Extract the emoji ID and name
-                    emoji_id = int(emoji.split(':')[2][:-1])
-                    emoji_name = emoji.split(':')[1]
-
-                    # Check if the emoji exists in the guild
-                    if discord.utils.get(interaction.guild.emojis, id=emoji_id):
-                        return {'unicode': False, 'id': emoji_id, 'name': emoji_name}
+                # Attempt to create a PartialEmoji from the string
+                emoji = discord.PartialEmoji.from_str(emoji)
+                
+                # If it's a custom emoji, check if it exists in the guild
+                if emoji.is_custom_emoji():
+                    if discord.utils.get(interaction.guild.emojis, id=emoji.id):
+                        return {'unicode': False, 'id': emoji.id, 'name': emoji.name}
                     return False
                 
-                # Check if the emoji is a valid Unicode emoji
-                if len(emoji) == 1: # Single character emoji (e.g., 😊)
-                    if unicodedata.category(emoji) == "So":  # "So" stands for "Symbol, Other" (used for emojis)
-                        return {'unicode': True, 'name': emoji}
-                    return False
-                
-                if len(emoji) > 1: # Multi-character emoji (e.g., 👨‍👩‍👧‍👦)
-                    for char in emoji:
-                        if unicodedata.category(char) != "So":
-                            return False
-                    return {'unicode': True, 'name': emoji}
-                
-                return False
-
+                # If it's a Unicode emoji, return emoji dictionary
+                return {'unicode': True, 'name': emoji.name}
+            
             except Exception:
+                # If from_str fails, it's not a valid emoji
                 return False
         
         # Validate emoji (Unicode or custom guild emoji)
