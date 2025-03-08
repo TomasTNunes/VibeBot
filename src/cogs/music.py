@@ -381,45 +381,62 @@ class MusicCog(commands.Cog):
 
     async def cleanup_music_channels(self):
         """
+        For all guilds:
         Remove messages from music text channels that are not the music message and create missing music messages.
         Set music message to default.
         Restore MusicPlayerView.
         """
         # Iterate through all guilds in `music_data.json`
         for guild_music_data in self.music_data.values():
-            # Get guild from guild ID
-            guild = self.bot.get_guild(guild_music_data.get('guild_id'))
-
-            # Get music text channel from ID
-            music_text_channel = guild.get_channel(guild_music_data.get('music_text_channel_id')) if guild else None
-
-            # If music text channel does not exist skip iteration
-            # Don't remove from music data because music data contains other information that should not be deleted
-            # in case music channel is created again (deafult volume, playlists, etc.)
-            if not music_text_channel:
-                continue
-
-            # get music message from ID
-            try:
-                music_message = await music_text_channel.fetch_message(guild_music_data.get('music_message_id')) if music_text_channel else None
-            except Exception as e:
-                music_message = None
-            
-            # delete all messages in music text channel that are not the music message
-            music_message_id = guild_music_data.get('music_message_id')
-            await music_text_channel.purge(check=lambda m: m.id != music_message_id, bulk=True)
-
-            # If music message does not exist, create it. Otherwise, set it to default
-            if not music_message:
-                await self.create_music_message(music_text_channel)
-            else:
-                # Get default music message
-                music_channel_text, embed = self.get_default_music_message()
-
-                # Set music message to default and restore MusicPlayerView
-                await music_message.edit(content=music_channel_text, embed=embed, view=MusicPlayerView(self.bot, self, guild))
+            # Clean music text channel for this guild
+            await self.cleanup_music_channel(guild_music_data)
 
         logger.info('Music text channels cleaned up, music messages set to default and MusicPlayerViews.')
+    
+    async def cleanup_music_channel(self, guild_music_data: dict):
+        """
+        For given guild:
+        Remove messages from music text channels that are not the music message and create missing music messages.
+        Set music message to default.
+        Restore MusicPlayerView.
+        """
+        # Get guild from guild ID
+        guild = self.bot.get_guild(guild_music_data.get('guild_id'))
+
+        # Get music text channel from ID
+        music_text_channel = guild.get_channel(guild_music_data.get('music_text_channel_id')) if guild else None
+
+        # If music text channel does not exist skip iteration
+        # Don't remove from music data because music data contains other information that should not be deleted
+        # in case music channel is created again (deafult volume, playlists, etc.)
+        # This note is important when called in cleanup_music_channels()
+        if not music_text_channel:
+            return
+
+        # get music message from ID
+        music_message_id = guild_music_data.get('music_message_id')
+        try:
+            music_message = await music_text_channel.fetch_message(music_message_id) if music_text_channel else None
+        except Exception as e:
+            music_message = None
+        
+        # delete all messages in music text channel that are not the music message
+        await music_text_channel.purge(check=lambda m: m.id != music_message_id, bulk=True)
+
+        # If music message does not exist, create it. Otherwise, set it to default
+        if not music_message:
+            await self.create_music_message(music_text_channel)
+        else:
+            # Get default music message
+            music_channel_text, embed = self.get_default_music_message()
+
+            # Get MusicPlayerView for this guild if it exists, otherwise create a new one
+            musicplayerview = self.get_musicplayerview(music_text_channel.guild.id)
+            if not musicplayerview:
+                musicplayerview = MusicPlayerView(self.bot, self, guild)
+
+            # Set music message to default and restore MusicPlayerView
+            await music_message.edit(content=music_channel_text, embed=embed, view=musicplayerview)
     
     ######################################
     ######### MUSIC PLAYER VIEW ##########
@@ -924,7 +941,39 @@ class MusicCog(commands.Cog):
         await self.create_music_message(music_text_channel)
 
         # Infom user music text channel was created
-        await interaction.response.send_message(embed=success_embed(f'Music text channel created: {music_text_channel.mention}')) 
+        await interaction.response.send_message(embed=success_embed(f'Music text channel created: {music_text_channel.mention}'))
+    
+    @app_commands.command(name='setup-fix', description='Recreate music text message in music text channel')
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 10.0)
+    @app_commands.checks.has_permissions(manage_guild=True)
+    @app_commands.checks.bot_has_permissions(
+        read_message_history=True,
+        manage_messages=True,
+        send_messages=True,
+        embed_links=True
+    ) 
+    async def fix_setup(self, interaction: discord.Interaction):
+        """Fix music music text channel. Recreate music text message. Deletes all other messages in music text channel."""
+        # Get musicd data for this guild
+        guild_music_data = self.get_guild_music_data(interaction.guild.id)
+
+        # Get music text channel in case it exists in current guild, otherwise None
+        music_text_channel = interaction.guild.get_channel(guild_music_data.get('music_text_channel_id')) if guild_music_data else None
+
+        # If music text channel doesn't exist, inform user to /setup
+        if not music_text_channel:
+            await interaction.response.send_message(embed=warning_embed(f'Music text channel does not exist./nUse `/setup` to create one.'), ephemeral=True)
+            return
+        
+        # Prevents the interaction from timing out
+        await interaction.response.defer(ephemeral=True)
+
+        # Clean music text channel
+        await self.cleanup_music_channel(guild_music_data)
+
+        # Success message
+        await interaction.followup.send(embed=success_embed(f'Music text channel fixed.'))
     
     @app_commands.command(name='volume', description='Change bot\'s audio volume')
     @app_commands.guild_only()
