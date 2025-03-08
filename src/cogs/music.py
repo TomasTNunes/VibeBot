@@ -772,6 +772,37 @@ class MusicCog(commands.Cog):
             await self.update_music_embed(guild)
 
         return False
+    
+    ######################################
+    ######## AUXILIAR FUNCTIONS ##########
+    ######################################
+
+    async def playlist_autocomplete(self, interaction: discord.Interaction, current: str):
+        """Auxiliar function to autocomplete function for playlist names in inputs of / commands."""
+        return [
+            app_commands.Choice(name=pl_name, value=pl_name)
+            for pl_name in self.get_guild_music_data(interaction.guild.id).get('playlists', {}) if current.lower() in pl_name.lower()
+        ]
+    
+    @staticmethod
+    def is_valid_emoji(interaction: discord.Interaction, emoji: str):
+        """Checks if the emoji is valid (Unicode or custom guild emoji)."""
+        try:
+            # Attempt to create a PartialEmoji from the string
+            emoji = discord.PartialEmoji.from_str(emoji)
+            
+            # If it's a custom emoji, check if it exists in the guild
+            if emoji.is_custom_emoji():
+                if discord.utils.get(interaction.guild.emojis, id=emoji.id):
+                    return {'unicode': False, 'id': emoji.id, 'name': emoji.name}
+                return False
+            
+            # If it's a Unicode emoji, return emoji dictionary
+            return {'unicode': True, 'name': emoji.name}
+        
+        except Exception:
+            # If from_str fails, it's not a valid emoji
+            return False
 
     ######################################
     ############# COMMANDS ###############
@@ -1043,29 +1074,9 @@ class MusicCog(commands.Cog):
             await interaction.response.send_message(embed=error_embed("At least one of `button_name` or `emoji` must be provided as input for this command."), ephemeral=True)
             return
         
-        # Auxiliar function to validate emoji
-        def is_valid_emoji(interaction: discord.Interaction, emoji: str):
-            """Checks if the emoji is valid (Unicode or custom guild emoji)."""
-            try:
-                # Attempt to create a PartialEmoji from the string
-                emoji = discord.PartialEmoji.from_str(emoji)
-                
-                # If it's a custom emoji, check if it exists in the guild
-                if emoji.is_custom_emoji():
-                    if discord.utils.get(interaction.guild.emojis, id=emoji.id):
-                        return {'unicode': False, 'id': emoji.id, 'name': emoji.name}
-                    return False
-                
-                # If it's a Unicode emoji, return emoji dictionary
-                return {'unicode': True, 'name': emoji.name}
-            
-            except Exception:
-                # If from_str fails, it's not a valid emoji
-                return False
-        
         # Validate emoji (Unicode or custom guild emoji)
         if emoji:
-            emoji_dict = is_valid_emoji(interaction, emoji)
+            emoji_dict = self.is_valid_emoji(interaction, emoji)
             if not emoji_dict:
                 await interaction.response.send_message(embed=error_embed("Invalid emoji. Use a Unicode emoji or a custom emoji from this server."), ephemeral=True)
                 return
@@ -1132,12 +1143,6 @@ class MusicCog(commands.Cog):
         embed.set_footer(text=f'/pl-add to add new playlists.\n/pl-remove to remove playlists.')
         await interaction.response.send_message(embed=embed)
 
-    async def playlist_autocomplete(self, interaction: discord.Interaction, current: str):
-        """Auxiliar function to autocomplete function for playlist names in inputs of / commands."""
-        return [
-            app_commands.Choice(name=pl_name, value=pl_name)
-            for pl_name in self.get_guild_music_data(interaction.guild.id).get('playlists', {}) if current.lower() in pl_name.lower()
-        ]
     @app_commands.command(name='pl-remove', description='Remove playlists')
     @app_commands.guild_only()
     @app_commands.checks.cooldown(1, 5.0)
