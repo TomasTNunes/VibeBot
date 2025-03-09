@@ -52,6 +52,19 @@ async def on_ready():
     except Exception as e:
         logger.error(f'Failed to sync commands: {e}')
 
+@bot.event
+async def on_command_error(ctx, error):
+    """
+    The default command error handler provided by the bot. 
+    This only fires if you do not specify any listeners for command error.
+    """
+    # Ignore CommandNotFound errors
+    if isinstance(error, commands.CommandNotFound):
+        pass
+    else:
+        # Re-raise other errors to be handled elsewhere
+        raise error
+
 
 if __name__ == '__main__':
     """Run bot instance"""
