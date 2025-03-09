@@ -1234,7 +1234,7 @@ class MusicCog(commands.Cog):
         embed.set_footer(text=f'/pl-add to add new playlists.\n/pl-remove to remove playlists.')
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name='pl-remove', description='Remove playlists')
+    @app_commands.command(name='pl-remove', description='Remove playlist')
     @app_commands.guild_only()
     @app_commands.checks.cooldown(1, 5.0)
     @app_commands.checks.has_permissions(manage_guild=True)
