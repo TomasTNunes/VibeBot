@@ -1395,6 +1395,47 @@ class MusicCog(commands.Cog):
 
         # Send success message
         await interaction.response.send_message(embed=success_embed(f'Queue cleared.'), delete_after=7)
+    
+    @app_commands.command(name='jump', description='Jump to a specific track in the queue.')
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 5.0)
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    @app_commands.describe(
+        position="Position of track in queue",
+    )
+    async def jump(self, interaction: discord.Integration, position: app_commands.Range[int, 1, 999999999]):
+        """Jump to a specific track in the queue."""
+        # Check if command should continue using check_and_join()
+        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=True)
+        if check:
+            await interaction.response.send_message(embed=error_embed(check), ephemeral=True)
+            return
+
+        # Get player for this guild
+        player = self.lavalink.player_manager.get(interaction.guild.id)
+
+        # Get queue list
+        queue = player.queue
+
+        # Check if given position is valid
+        if position > len(queue):
+            await interaction.response.send_message(embed=error_embed(f'Position must be between `1` and `{len(queue)}`.'), ephemeral=True)
+            return
+
+        # Check if loop queue is enabled
+        if player.loop == player.LOOP_QUEUE:
+            player.queue = queue[position - 1:] + queue[:position - 1]
+        else:
+            player.queue = queue[position - 1:]
+        
+        # Play selected track
+        if player.loop == player.LOOP_SINGLE:
+            await player.play(player.queue.pop(0))
+        else:
+            await player.skip()
+
+        # Send success message
+        await interaction.response.send_message(embed=success_embed(f'Jumped to position `{position}` in queue.'), delete_after=7)
 
 async def setup(bot):
     # Add MusicCog to bot instance
