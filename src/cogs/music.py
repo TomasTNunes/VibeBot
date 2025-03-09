@@ -1317,6 +1317,60 @@ class MusicCog(commands.Cog):
 
         # Send success message
         await interaction.followup.send(embed=success_embed(f'Skipped to `{time}` seconds'), ephemeral=True)
+    
+    @app_commands.command(name='fast-forward', description='Fast forwards the current track by a specificied ammount. Default is 15 seconds.')
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 3.0)
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    @app_commands.describe(
+        time="Time to fast forward by (in seconds)",
+    )
+    async def fast_forward(self, interaction: discord.Integration, time: Optional[app_commands.Range[int, 0, 999999999]] = 15):
+        """Fast forwards the current track by a specificied ammount. Default is 15 seconds."""
+        # Prevents the interaction from timing out
+        await interaction.response.defer(ephemeral=True)
+
+        # Check if command should continue using check_and_join()
+        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=True)
+        if check:
+            await interaction.followup.send(embed=error_embed(check), ephemeral=True)
+            return
+
+        # Get player for this guild
+        player = self.lavalink.player_manager.get(interaction.guild.id)
+
+        # Seek to given time
+        await player.seek(player.position + time * 1000)
+
+        # Send success message
+        await interaction.followup.send(embed=success_embed(f'Fast forwarded by `{time}` seconds.\nNew position: `{int(player.position / 1000)}s`'), ephemeral=True)
+    
+    @app_commands.command(name='rewind', description='Rewinds the current track by a specificied ammount. Default is 15 seconds.')
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 3.0)
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    @app_commands.describe(
+        time="Time to rewind by (in seconds)",
+    )
+    async def rewind(self, interaction: discord.Integration, time: Optional[app_commands.Range[int, 0, 999999999]] = 15):
+        """Rewinds the current track by a specificied ammount. Default is 15 seconds."""
+        # Prevents the interaction from timing out
+        await interaction.response.defer(ephemeral=True)
+
+        # Check if command should continue using check_and_join()
+        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=True)
+        if check:
+            await interaction.followup.send(embed=error_embed(check), ephemeral=True)
+            return
+
+        # Get player for this guild
+        player = self.lavalink.player_manager.get(interaction.guild.id)
+
+        # Seek to given time
+        await player.seek(player.position - time * 1000)
+
+        # Send success message
+        await interaction.followup.send(embed=success_embed(f'Rewound by `{time}` seconds.\nNew position: `{int(player.position / 1000)}s`'), ephemeral=True)
 
 async def setup(bot):
     # Add MusicCog to bot instance
