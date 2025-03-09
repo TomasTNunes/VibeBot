@@ -975,37 +975,6 @@ class MusicCog(commands.Cog):
         # Success message
         await interaction.followup.send(embed=success_embed(f'Music text channel fixed.'))
     
-    @app_commands.command(name='volume', description='Change bot\'s audio volume')
-    @app_commands.guild_only()
-    @app_commands.checks.cooldown(1, 3.0)
-    @app_commands.checks.bot_has_permissions(embed_links=True)
-    @app_commands.describe(
-        volume="Set the player volume (0-200)"
-    )
-    async def volume(self, interaction: discord.Interaction, volume: app_commands.Range[int, 0, 200]):
-        """Change bot's audio volume."""
-        # Prevents the interaction from timing out
-        await interaction.response.defer(ephemeral=True)
-
-        # Check if command should continue using check_and_join()
-        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=False)
-        if check:
-            await interaction.followup.send(embed=error_embed(check), ephemeral=True)
-            return
-
-        # Get player for this guild
-        player = self.lavalink.player_manager.get(interaction.guild.id)
-
-        # Set player volume
-        await player.set_volume(volume)
-
-        # Update music message embed
-        if player.is_playing:
-            await self.update_music_embed(interaction.guild)
-
-        # Send success message
-        await interaction.followup.send(embed=success_embed(f'Volume set to `{volume}%`'), ephemeral=True)
-    
     @app_commands.command(name='default-volume', description='Set the defauft volume when the bot joins a voice channel')
     @app_commands.guild_only()
     @app_commands.checks.cooldown(1, 10.0)
@@ -1214,7 +1183,6 @@ class MusicCog(commands.Cog):
     @app_commands.command(name='pl-show', description='Show added playlists')
     @app_commands.guild_only()
     @app_commands.checks.cooldown(1, 10.0)
-    @app_commands.checks.has_permissions(manage_guild=True)
     @app_commands.checks.bot_has_permissions(embed_links=True)
     async def show_playlists(self, interaction: discord.Integration):
         """Show added playlists."""
@@ -1280,6 +1248,75 @@ class MusicCog(commands.Cog):
             return
         await interaction.response.send_message(embed=warning_embed(f'Playlist named `{name}` not found.\nUse `/pl-show` to see list of existing playlists.'),
                                                 ephemeral=True)
+    
+    @app_commands.command(name='volume', description='Change bot\'s audio volume')
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 3.0)
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    @app_commands.describe(
+        volume="Set the player volume (0-200)"
+    )
+    async def volume(self, interaction: discord.Interaction, volume: app_commands.Range[int, 0, 200]):
+        """Change bot's audio volume."""
+        # Prevents the interaction from timing out
+        await interaction.response.defer(ephemeral=True)
+
+        # Check if command should continue using check_and_join()
+        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=False)
+        if check:
+            await interaction.followup.send(embed=error_embed(check), ephemeral=True)
+            return
+
+        # Get player for this guild
+        player = self.lavalink.player_manager.get(interaction.guild.id)
+
+        # Set player volume
+        await player.set_volume(volume)
+
+        # Update music message embed
+        if player.is_playing:
+            await self.update_music_embed(interaction.guild)
+
+        # Send success message
+        await interaction.followup.send(embed=success_embed(f'Volume set to `{volume}%`'), ephemeral=True)
+    
+    @app_commands.command(name='seek', description='Skips to a specific time in the current song')
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 3.0)
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    @app_commands.describe(
+        time="Time to skip to (in seconds)",
+    )
+    async def seek_time(self, interaction: discord.Integration, time: app_commands.Range[int, 0, 999999999]):
+        """Skips to a specific time in the current song."""
+        # Prevents the interaction from timing out
+        await interaction.response.defer(ephemeral=True)
+
+        # Check if command should continue using check_and_join()
+        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=True)
+        if check:
+            await interaction.followup.send(embed=error_embed(check), ephemeral=True)
+            return
+
+        # Get player for this guild
+        player = self.lavalink.player_manager.get(interaction.guild.id)
+
+        # Get current track
+        current_track = player.current
+
+        # Get current track duration
+        current_track_duration = current_track.duration / 1000
+
+        # Check if given time is valid
+        if time > current_track_duration:
+            await interaction.followup.send(embed=error_embed(f'Invalid time. Current track is `{int(current_track_duration)}` seconds long.'), ephemeral=True)
+            return
+
+        # Seek to given time
+        await player.seek(time * 1000)
+
+        # Send success message
+        await interaction.followup.send(embed=success_embed(f'Skipped to `{time}` seconds'), ephemeral=True)
 
 async def setup(bot):
     # Add MusicCog to bot instance
