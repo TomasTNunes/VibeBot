@@ -1074,6 +1074,48 @@ class MusicCog(commands.Cog):
         else:
             await interaction.response.send_message(embed=success_embed(f'Default Loop Queue `disabled`'))
     
+    @app_commands.command(name='auto-disconnect', description='Enable or Disable auto-disconnect when idle. Change auto-disconnect idle timer.')
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 10.0)
+    @app_commands.checks.has_permissions(manage_guild=True)
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    @app_commands.choices(state=[
+    app_commands.Choice(name="Enable", value=1),
+    app_commands.Choice(name="Disable", value=0)
+    ])
+    @app_commands.describe(
+        state="Enable/Disable auto-disconnect",
+        timer="Set auto-disconnect idle timer in seconds",
+    )
+    async def set_idle_timer(self, interaction: discord.Integration, state: Optional[app_commands.Choice[int]] = None, timer: Optional[app_commands.Range[int, 10, 3600]] = None):
+        """Enable or Disable auto-disconnect when idle. Change auto-disconnect idle timer."""
+        # Check if any arguments used
+        if not state and not timer:
+            await interaction.response.send_message(embed=error_embed("You must provide at least one argument."), ephemeral=True)
+            return
+        
+        # Set state, if state provided
+        if state:
+            self.add_music_data(
+                guild_id=interaction.guild.id,
+                keys='auto_disconnect',
+                values=bool(state.value)
+            )
+
+        # Set timer, if timer provided
+        if timer:
+            self.add_music_data(
+                guild_id=interaction.guild.id,
+                keys='idle_timer',
+                values=timer
+            )
+        
+        # Send info message
+        if self.get_guild_music_data(interaction.guild.id).get('auto_disconnect', True):
+            await interaction.response.send_message(embed=info_embed(f'Auto-disconnect `enabled`.\nIdle timer: `{self.get_guild_music_data(interaction.guild.id).get('idle_timer', 300)}s`'))
+        else:
+            await interaction.response.send_message(embed=info_embed(f'Auto-disconnect `disabled`.'))
+    
     @app_commands.command(name='pl-add', description='Add playlist button to music message')
     @app_commands.guild_only()
     @app_commands.checks.cooldown(1, 5.0)
