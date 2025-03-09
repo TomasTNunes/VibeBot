@@ -1121,13 +1121,25 @@ class MusicCog(commands.Cog):
     @app_commands.checks.cooldown(1, 5.0)
     @app_commands.checks.has_permissions(manage_guild=True)
     @app_commands.checks.bot_has_permissions(embed_links=True)
+    @app_commands.choices(shuffle=[
+    app_commands.Choice(name="Yes", value=1),
+    app_commands.Choice(name="No", value=0)
+    ])
     @app_commands.describe(
         name="Playlist name (1-50 characters)",
         url="Playlist url (Spotify, Youtube, Soundcloud, AppleMusic, etc.)",
         button_name="Playlist button name (1-8 characters)",
-        emoji="Playlist button emoji"
+        emoji="Playlist button emoji",
+        shuffle="If playlist should be shuffled when played. Default: `No`",
     )
-    async def set_playlist_add(self, interaction: discord.Interaction, name: app_commands.Range[str, 1, 50], url: str, button_name: Optional[app_commands.Range[str, 1, 8]] = None, emoji: Optional[str] = None):
+    async def set_playlist_add(self, 
+                               interaction: discord.Interaction, 
+                               name: app_commands.Range[str, 1, 50], 
+                               url: str, 
+                               button_name: Optional[app_commands.Range[str, 1, 8]] = None, 
+                               emoji: Optional[str] = None,
+                               shuffle: Optional[app_commands.Choice[int]] = None
+                               ):
         """Add playlist button to music message."""
         # Check if all inputs contain only ASCII characters
         if not name.isascii():
@@ -1181,6 +1193,9 @@ class MusicCog(commands.Cog):
         if emoji:
             keys.append('emoji')
             values.append(emoji_dict)
+        if shuffle:
+            keys.append('shuffle')
+            values.append(bool(shuffle.value))
 
         # Add playlist to guild music data
         self.add_music_data(
@@ -1240,6 +1255,9 @@ class MusicCog(commands.Cog):
     @app_commands.checks.has_permissions(manage_guild=True)
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.autocomplete(name=playlist_autocomplete)
+    @app_commands.describe(
+        name="Name of playlists you wish to remove",
+    )
     async def remove_playlists(self, interaction: discord.Integration, name: str):
         """Remove playlists."""
         # Check if playlist exists

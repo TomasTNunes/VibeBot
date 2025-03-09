@@ -201,6 +201,7 @@ class MusicPlayerView(View):
                 # Create playlist button
                 playlist_button = PlaylistButton(
                     url=playlists[pl_name].get('url'),
+                    shuffle=playlists[pl_name].get('shuffle', False),
                     style=discord.ButtonStyle.grey,
                     emoji=playlist_emoji,
                     label=playlists[pl_name].get('button_name', None),
