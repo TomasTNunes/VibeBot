@@ -888,6 +888,10 @@ class MusicCog(commands.Cog):
         # Handle rest of app_commands.AppCommandError exceptions
         else:
             await interaction.response.send_message(embed=error_embed(f'An unexpected error has occured: {error}'), ephemeral=True)
+    
+    ######################################
+    ###### DEFINE SETTINGS / COMMANDS ####
+    ######################################
 
     @app_commands.command(name='setup', description='Create music text channel')
     @app_commands.guild_only()  # Only allow command in guilds, not in private messages
@@ -1085,6 +1089,10 @@ class MusicCog(commands.Cog):
         else:
             await interaction.response.send_message(embed=info_embed(f'Auto-disconnect `disabled`.'))
     
+    ######################################
+    ######### PLAYLISTS / COMMANDS #######
+    ######################################
+    
     @app_commands.command(name='pl-add', description='Add playlist button to music message')
     @app_commands.guild_only()
     @app_commands.checks.cooldown(1, 5.0)
@@ -1248,6 +1256,10 @@ class MusicCog(commands.Cog):
             return
         await interaction.response.send_message(embed=warning_embed(f'Playlist named `{name}` not found.\nUse `/pl-show` to see list of existing playlists.'),
                                                 ephemeral=True)
+    
+    ######################################
+    ########## PLAYER / COMMANDS #########
+    ######################################
     
     @app_commands.command(name='volume', description='Change bot\'s audio volume')
     @app_commands.guild_only()
