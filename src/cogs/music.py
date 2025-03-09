@@ -8,7 +8,6 @@ from lavalink.events import TrackStartEvent, QueueEndEvent, NodeConnectedEvent, 
 import json
 import asyncio
 import re
-import unicodedata
 from typing import Union, List, Any, Optional
 from assets.logger.logger import music_logger as logger, music_data_logger, debug_logger
 from assets.music.lavalinkvoiceclient import LavalinkVoiceClient
