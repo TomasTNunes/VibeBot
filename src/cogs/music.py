@@ -1270,13 +1270,10 @@ class MusicCog(commands.Cog):
     )
     async def volume(self, interaction: discord.Interaction, volume: app_commands.Range[int, 0, 200]):
         """Change bot's audio volume."""
-        # Prevents the interaction from timing out
-        await interaction.response.defer(ephemeral=True)
-
         # Check if command should continue using check_and_join()
         check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=False)
         if check:
-            await interaction.followup.send(embed=error_embed(check), ephemeral=True)
+            await interaction.response.send_message(embed=error_embed(check), ephemeral=True)
             return
 
         # Get player for this guild
@@ -1290,7 +1287,7 @@ class MusicCog(commands.Cog):
             await self.update_music_embed(interaction.guild)
 
         # Send success message
-        await interaction.followup.send(embed=success_embed(f'Volume set to `{volume}%`'), ephemeral=True)
+        await interaction.response.send_message(embed=success_embed(f'Volume set to `{volume}%`'), delete_after=7)
     
     @app_commands.command(name='seek', description='Skips to a specific time in the current song')
     @app_commands.guild_only()
@@ -1301,13 +1298,10 @@ class MusicCog(commands.Cog):
     )
     async def seek_time(self, interaction: discord.Integration, time: app_commands.Range[int, 0, 999999999]):
         """Skips to a specific time in the current song."""
-        # Prevents the interaction from timing out
-        await interaction.response.defer(ephemeral=True)
-
         # Check if command should continue using check_and_join()
         check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=True)
         if check:
-            await interaction.followup.send(embed=error_embed(check), ephemeral=True)
+            await interaction.response.send_message(embed=error_embed(check), ephemeral=True)
             return
 
         # Get player for this guild
@@ -1321,14 +1315,14 @@ class MusicCog(commands.Cog):
 
         # Check if given time is valid
         if time > current_track_duration:
-            await interaction.followup.send(embed=error_embed(f'Invalid time. Current track is `{int(current_track_duration)}` seconds long.'), ephemeral=True)
+            await interaction.response.send_message(embed=error_embed(f'Invalid time. Current track is `{int(current_track_duration)}` seconds long.'), ephemeral=True)
             return
 
         # Seek to given time
         await player.seek(time * 1000)
 
         # Send success message
-        await interaction.followup.send(embed=success_embed(f'Skipped to `{time}` seconds'), ephemeral=True)
+        await interaction.response.send_message(embed=success_embed(f'Skipped to `{time}` seconds'), delete_after=7)
     
     @app_commands.command(name='fast-forward', description='Fast forwards the current track by a specificied ammount. Default is 15 seconds.')
     @app_commands.guild_only()
@@ -1339,13 +1333,10 @@ class MusicCog(commands.Cog):
     )
     async def fast_forward(self, interaction: discord.Integration, time: Optional[app_commands.Range[int, 0, 999999999]] = 15):
         """Fast forwards the current track by a specificied ammount. Default is 15 seconds."""
-        # Prevents the interaction from timing out
-        await interaction.response.defer(ephemeral=True)
-
         # Check if command should continue using check_and_join()
         check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=True)
         if check:
-            await interaction.followup.send(embed=error_embed(check), ephemeral=True)
+            await interaction.response.send_message(embed=error_embed(check), ephemeral=True)
             return
 
         # Get player for this guild
@@ -1355,7 +1346,7 @@ class MusicCog(commands.Cog):
         await player.seek(player.position + time * 1000)
 
         # Send success message
-        await interaction.followup.send(embed=success_embed(f'Fast forwarded by `{time}` seconds.\nNew position: `{int(player.position / 1000)}s`'), ephemeral=True)
+        await interaction.response.send_message(embed=success_embed(f'Fast forwarded by `{time}` seconds.\nNew position: `{int(player.position / 1000)}s`'), delete_after=7)
     
     @app_commands.command(name='rewind', description='Rewinds the current track by a specificied ammount. Default is 15 seconds.')
     @app_commands.guild_only()
@@ -1366,13 +1357,10 @@ class MusicCog(commands.Cog):
     )
     async def rewind(self, interaction: discord.Integration, time: Optional[app_commands.Range[int, 0, 999999999]] = 15):
         """Rewinds the current track by a specificied ammount. Default is 15 seconds."""
-        # Prevents the interaction from timing out
-        await interaction.response.defer(ephemeral=True)
-
         # Check if command should continue using check_and_join()
         check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=True)
         if check:
-            await interaction.followup.send(embed=error_embed(check), ephemeral=True)
+            await interaction.response.send_message(embed=error_embed(check), ephemeral=True)
             return
 
         # Get player for this guild
@@ -1382,7 +1370,31 @@ class MusicCog(commands.Cog):
         await player.seek(player.position - time * 1000)
 
         # Send success message
-        await interaction.followup.send(embed=success_embed(f'Rewound by `{time}` seconds.\nNew position: `{int(player.position / 1000)}s`'), ephemeral=True)
+        await interaction.response.send_message(embed=success_embed(f'Rewound by `{time}` seconds.\nNew position: `{int(player.position / 1000)}s`'), delete_after=7)
+    
+    @app_commands.command(name='clear-queue', description='Clear the queue')
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 5.0)
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    async def clear_queue(self, interaction: discord.Integration):
+        """Clear the queue."""
+        # Check if command should continue using check_and_join()
+        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=True)
+        if check:
+            await interaction.response.send_message(embed=error_embed(check), ephemeral=True)
+            return
+
+        # Get player for this guild
+        player = self.lavalink.player_manager.get(interaction.guild.id)
+
+        # Clear queue
+        player.queue.clear()
+
+        # Update music message embed
+        await self.update_music_embed(interaction.guild)
+
+        # Send success message
+        await interaction.response.send_message(embed=success_embed(f'Queue cleared.'), delete_after=7)
 
 async def setup(bot):
     # Add MusicCog to bot instance
