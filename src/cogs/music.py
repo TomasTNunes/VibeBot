@@ -1243,7 +1243,11 @@ class MusicCog(commands.Cog):
             # Add playlists to embed field
             embed.add_field(
                 name=f'',
-                value=f'**{i+1}.** **[{pl_name}]({playlists[pl_name].get('url')})**: {playlist_emoji} {playlists[pl_name].get('button_name','')}',
+                value=(
+                    f'**{i+1}.** **[{pl_name}]({playlists[pl_name].get('url')})**'
+                    f'\nButton: `{playlist_emoji} {playlists[pl_name].get('button_name','')}`'
+                    f'\nShuffle: `{playlists[pl_name].get("shuffle", False)}`'
+                ),
                 inline=False
             )
         embed.set_footer(text=f'/pl-add to add new playlists.\n/pl-remove to remove playlists.')
