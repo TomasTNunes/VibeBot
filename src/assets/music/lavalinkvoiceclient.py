@@ -3,7 +3,7 @@ import lavalink
 from lavalink.errors import ClientError
 import asyncio
 from assets.logger.logger import debug_logger
-from assets.replies.reply_embed import error_embed, success_embed, warning_embed
+from assets.utils.reply_embed import error_embed, success_embed, warning_embed
 
 class LavalinkVoiceClient(discord.VoiceProtocol):
     """

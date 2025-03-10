@@ -4,7 +4,7 @@ from discord.ext import commands
 from discord.ui import Button, View
 from lavalink.events import QueueEndEvent
 import random
-from assets.replies.reply_embed import error_embed, success_embed, warning_embed
+from assets.utils.reply_embed import error_embed, success_embed, warning_embed
 from assets.music.playlistbutton import PlaylistButton
 
 # (https://discordpy.readthedocs.io/en/stable/interactions/api.html#discord.ui.View)

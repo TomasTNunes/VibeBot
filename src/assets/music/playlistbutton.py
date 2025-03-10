@@ -1,6 +1,6 @@
 import discord
 import random
-from assets.replies.reply_embed import error_embed, success_embed, warning_embed
+from assets.utils.reply_embed import error_embed, success_embed, warning_embed
 
 class PlaylistButton(discord.ui.Button):
     """Class inherited from discord.ui.Button to handle MusicPlayerView Playlist buttons."""
