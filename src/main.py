@@ -3,6 +3,7 @@ import discord
 from discord import ActivityType, app_commands
 from discord.ext import commands
 from dotenv import load_dotenv
+import time
 from assets.logger.logger import main_logger as logger, debug_logger
 from assets.utils.reply_embed import error_embed, success_embed, warning_embed, info_embed
 from assets.utils.invitebuttonview import InviteButtonView
@@ -36,6 +37,9 @@ async def on_ready():
     await bot.change_presence(status=discord.Status.online, 
                             activity=discord.Activity(type=ActivityType.listening, name="/help | /setup"))
     logger.info(f'Logged in as {bot.user}')
+
+    # Get Start time
+    bot.start_time = time.monotonic()
 
     # Load cogs
     for cog in cogs:
@@ -141,6 +145,45 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
 async def invite(interaction: discord.Interaction):
     """Get the bot invite link in a button."""
     await interaction.response.send_message("Click the button below to invite VibeBot to your server!", view=InviteButtonView())
+
+@bot.tree.command(name="ping", description="Shows the bot's ping.")
+@app_commands.checks.cooldown(1, 5.0)
+@app_commands.checks.bot_has_permissions(embed_links=True)
+async def ping(interaction: discord.Interaction):
+    """
+    Shows the bot's ping, specifically:
+        - Bot latency
+        - Discord API latency and Shard ID
+        - Database response time (when implemented)
+        - Redis response time (when implemented)
+        - Bot Uptime
+        """
+    # Get bot latency in ms, WebSocket latency (communication between the bot and Discord's gateway)
+    bot_latency = round(bot.latency * 1000)
+
+    # Get bot Shard ID
+    shard_id = interaction.guild.shard_id if interaction.guild else 0
+
+    # Measure Discord API latency in ms (REST API latency)
+    start_time = time.monotonic()
+    await bot.http.get_user(bot.user.id) # (simulating an API call)
+    api_latency = round((time.monotonic() - start_time) * 1000)
+
+    # Get uptime in days, hours, minutes and seconds
+    uptime = time.monotonic() - bot.start_time
+    days, remainder = divmod(uptime, 86400)
+    hours, remainder = divmod(remainder, 3600)
+    minutes, seconds = divmod(remainder, 60)
+
+    # Build response
+    response = (
+        f"**Bot Uptime:** `{int(days)}d {int(hours)}h {int(minutes)}m {int(seconds)}s`\n"
+        f"**Bot latency:** `{bot_latency}`ms\n"
+        f"**Discord API latency:** `{api_latency}`ms (Shard `{shard_id}`)"
+    )
+
+    # Send response
+    await interaction.response.send_message(embed=info_embed(response))
 
 if __name__ == '__main__':
     """Run bot instance"""
