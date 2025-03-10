@@ -1228,7 +1228,7 @@ class MusicCog(commands.Cog):
         # Send success message
         await interaction.response.send_message(embed=success_embed(f'Volume set to `{volume}%`'), delete_after=7)
     
-    @app_commands.command(name='seek', description='Skips to a specific time in the current song')
+    @app_commands.command(name='seek', description='Skips to a specified time in the current song')
     @app_commands.guild_only()
     @app_commands.checks.cooldown(1, 3.0)
     @app_commands.checks.bot_has_permissions(embed_links=True)
@@ -1335,7 +1335,7 @@ class MusicCog(commands.Cog):
         # Send success message
         await interaction.response.send_message(embed=success_embed(f'Queue cleared.'), delete_after=7)
     
-    @app_commands.command(name='jump', description='Jump to a specific track in the queue.')
+    @app_commands.command(name='jump', description='Jump to specified track in the queue')
     @app_commands.guild_only()
     @app_commands.checks.cooldown(1, 5.0)
     @app_commands.checks.bot_has_permissions(embed_links=True)
@@ -1343,7 +1343,7 @@ class MusicCog(commands.Cog):
         position="Position of track in queue",
     )
     async def jump(self, interaction: discord.Integration, position: app_commands.Range[int, 1, 999999999]):
-        """Jump to a specific track in the queue."""
+        """Jump to specified track in the queue."""
         # Check if command should continue using check_and_join()
         check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=True)
         if check:
@@ -1375,6 +1375,46 @@ class MusicCog(commands.Cog):
 
         # Send success message
         await interaction.response.send_message(embed=success_embed(f'Jumped to position `{position}` in queue.'), delete_after=7)
+    
+    @app_commands.command(name='remove', description='Remove specified track from queue')
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 5.0)
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    @app_commands.describe(
+        position="Position of track in queue",
+    )
+    async def remove_from_queue(self, interaction: discord.Integration, position: app_commands.Range[int, 1, 999999999]):
+        """Remove specified track from queue"""
+        # Check if command should continue using check_and_join()
+        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=True)
+        if check:
+            await interaction.response.send_message(embed=error_embed(check), ephemeral=True)
+            return
+
+        # Get player for this guild
+        player = self.lavalink.player_manager.get(interaction.guild.id)
+
+        # Get queue list
+        queue = player.queue
+
+        # Check if given position is valid
+        if position > len(queue):
+            await interaction.response.send_message(embed=error_embed(f'Position must be between `1` and `{len(queue)}`.'), ephemeral=True)
+            return
+
+        # Remove track from queue
+        removed_track = player.queue.pop(position-1)
+
+        # Update music message embed
+        await self.update_music_embed(interaction.guild)
+
+        # Send success message
+        message = (
+            f'Track `{position}. {removed_track.author} - {removed_track.title}` removed from queue.'
+            if removed_track.is_seekable else
+            f'Track `{position}. {removed_track.uri}` removed from queue.'
+        )
+        await interaction.response.send_message(embed=success_embed(message), delete_after=7)
 
 async def setup(bot):
     # Add MusicCog to bot instance
