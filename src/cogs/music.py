@@ -1,6 +1,6 @@
 import os
 import discord
-from discord import app_commands, Embed
+from discord import app_commands, Embed, PartialEmoji
 from discord.ext import commands
 import lavalink
 from lavalink.server import LoadType
@@ -805,7 +805,7 @@ class MusicCog(commands.Cog):
         """Checks if the emoji is valid (Unicode or custom guild emoji)."""
         try:
             # Attempt to create a PartialEmoji from the string
-            emoji = discord.PartialEmoji.from_str(emoji)
+            emoji = PartialEmoji.from_str(emoji)
             
             # If it's a custom emoji, check if it exists in the guild
             if emoji.is_custom_emoji():
@@ -1028,6 +1028,63 @@ class MusicCog(commands.Cog):
         else:
             await interaction.response.send_message(embed=info_embed(f'Auto-disconnect `disabled`.'))
     
+    @app_commands.command(name='settings', description='Shows guild\'s music player settings')
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 10.0)
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    async def settings(self, interaction: discord.Integration):
+        """Shows guild's music player settings."""
+        # Get guild music data
+        guild_music_data = self.get_guild_music_data(interaction.guild.id)
+
+        # Get music text channel
+        music_text_channel = interaction.guild.get_channel(guild_music_data.get('music_text_channel_id')) if guild_music_data else None
+        
+        # Get music message
+        try:
+            music_message = await music_text_channel.fetch_message(guild_music_data.get('music_message_id')) if music_text_channel else None
+        except Exception as e:
+            music_message = None
+        
+        # Create embed
+        embed = Embed(
+            color=discord.Colour.from_rgb(137, 76, 193),
+            title=f'🎶 {interaction.guild.name} - Music Player Settings'
+        )
+
+        # Add fields with channel/message and settings info
+        embed.add_field(
+            name="📌 **Channels & Messages**",
+            value=(
+                f'🔖 **Music Text Channel:** {music_text_channel.mention if music_text_channel else "*None*"}\n'
+                f'💬 **Music Message:** {music_message.jump_url if music_message else "*None*"}\n'
+            ),
+            inline=False
+        )
+
+        embed.add_field(
+            name="⚙️ **Playback Settings**",
+            value=(
+                f'🔊 **Default Volume:** `{guild_music_data.get("default_volume", 50)}%`\n'
+                f'🎵 **Default Autoplay:** `{guild_music_data.get("default_autoplay", "False")}`\n'
+                f'🔁 **Default Loop Queue:** `{guild_music_data.get("default_loop", "False")}`\n'
+            ),
+            inline=False
+        )
+
+        embed.add_field(
+            name="🛠 **Bot Behavior**",
+            value=(
+                f'🔌 **Auto Disconnect:** `{guild_music_data.get("auto_disconnect", "True")}`\n'
+                f'⏳ **Idle Timer:** `{guild_music_data.get("idle_timer", 300)}s`\n'
+            ),
+            inline=False
+        )
+
+        # Send embed
+        await interaction.response.send_message(embed=embed)
+
+    
     ######################################
     ######### PLAYLISTS / COMMANDS #######
     ######################################
@@ -1149,7 +1206,7 @@ class MusicCog(commands.Cog):
                 if playlists[pl_name].get('emoji').get('unicode'):
                     playlist_emoji = playlists[pl_name].get('emoji').get('name')
                 else:
-                    playlist_emoji = discord.PartialEmoji(
+                    playlist_emoji = PartialEmoji(
                         name=playlists[pl_name].get('emoji').get('name'),
                         id = playlists[pl_name].get('emoji').get('id')
                     )
