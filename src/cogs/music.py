@@ -1415,6 +1415,52 @@ class MusicCog(commands.Cog):
             f'Track `{position}. {removed_track.uri}` removed from queue.'
         )
         await interaction.response.send_message(embed=success_embed(message), delete_after=7)
+    
+    @app_commands.command(name='move', description='Move specified track in queue')
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 5.0)
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    @app_commands.rename(
+    frrom="from"  
+    )
+    @app_commands.describe(
+        frrom="Current position of track in queue",
+        to="New position of track in queue"
+    )
+    async def move(self, interaction: discord.Integration, frrom: app_commands.Range[int, 1, 999999999], to: app_commands.Range[int, 1, 999999999]):
+        """Move specified track in queue."""
+        # Check if command should continue using check_and_join()
+        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=True)
+        if check:
+            await interaction.response.send_message(embed=error_embed(check), ephemeral=True)
+            return
+
+        # Get player for this guild
+        player = self.lavalink.player_manager.get(interaction.guild.id)
+
+        # Check if given from position is valid
+        if frrom > len(player.queue):
+            await interaction.response.send_message(embed=error_embed(f'`from` position must be between `1` and `{len(player.queue)}`.'), ephemeral=True)
+            return
+
+        # Check if to position is valid
+        if to > len(player.queue):
+            to = len(player.queue)
+
+        # Move track in queue
+        track = player.queue.pop(frrom-1)
+        player.queue.insert(to-1, track)
+
+        # Update music message embed
+        await self.update_music_embed(interaction.guild)
+
+        # Send success message
+        message = (
+            f'Moved track `{track.author} - {track.title}` from **{frrom}.** to **{to}.** in queue.'
+            if track.is_seekable else
+            f'Moved track `{track.uri}` from **{frrom}.** to **{to}.** in queue.'
+        )
+        await interaction.response.send_message(embed=success_embed(message), delete_after=7)
 
 async def setup(bot):
     # Add MusicCog to bot instance
