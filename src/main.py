@@ -144,7 +144,17 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
 @app_commands.checks.bot_has_permissions(embed_links=True)
 async def invite(interaction: discord.Interaction):
     """Get the bot invite link in a button."""
-    await interaction.response.send_message("Click the button below to invite VibeBot to your server!", view=InviteButtonView())
+    embed = discord.Embed(
+        title="✨ Invite VibeBot to Your Server!",
+        description="Click the button below to invite **VibeBot** and enjoy music on your server!",
+        color=discord.Colour.from_rgb(137, 76, 193)
+    )
+    embed.set_thumbnail(url=bot.user.display_avatar.url)
+    embed.set_footer(text="Thank you for choosing VibeBot! 🎵")
+
+    await interaction.response.send_message(embed=embed, view=InviteButtonView())
+
+    #await interaction.response.send_message("Click the button below to invite VibeBot to your server!", view=InviteButtonView())
 
 @bot.tree.command(name="ping", description="Shows the bot's ping.")
 @app_commands.checks.cooldown(1, 5.0)
