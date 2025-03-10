@@ -8,12 +8,11 @@ from lavalink.events import TrackStartEvent, QueueEndEvent, NodeConnectedEvent, 
 import json
 import asyncio
 import re
-import unicodedata
 from typing import Union, List, Any, Optional
 from assets.logger.logger import music_logger as logger, music_data_logger, debug_logger
 from assets.music.lavalinkvoiceclient import LavalinkVoiceClient
 from assets.music.musicplayerview import MusicPlayerView
-from assets.replies.reply_embed import error_embed, success_embed, warning_embed, info_embed
+from assets.utils.reply_embed import error_embed, success_embed, warning_embed, info_embed
 
 url_rx = re.compile(r'https?://(?:www\.)?.+')
 
@@ -299,31 +298,40 @@ class MusicCog(commands.Cog):
             queue_time = 0
             queue_list = '__**Queue list:**__\n'
             if queue_size > 15:
-                queue_shown = player.queue[:15]
                 queue_list += f'\nAnd **{queue_size-15}** more...'
-            else:
-                queue_shown = player.queue
-            queue_shown_size = len(queue_shown)
 
-            for i,item in enumerate(queue_shown[::-1]):
+            for i,item in enumerate(player.queue[::-1]):
+                # get track position in queue
+                position = queue_size-i
+
+                # Accumulate queue time for non-streams
+                if not item.is_stream:
+                    queue_time += item.duration
+                
+                # For track beyond next 15 continue to next track
+                if position > 15:
+                    continue
+
+                # Set track duration string
                 if item.is_stream:
                     track_duration_str = 'LIVE'
                 else:
-                    queue_time += item.duration
                     track_duration_str = (
-                        f'{str(item.duration // 3600000).zfill(2)}:{(item.duration % 3600000) // 60000:02d}:{(item.duration % 60000) // 1000:02d}'
-                        if item.duration >= 3600000 else
-                        f'{str(item.duration // 60000).zfill(2)}:{item.duration % 60000 // 1000:02d}'
-                    )
+                            f'{str(item.duration // 3600000).zfill(2)}:{(item.duration % 3600000) // 60000:02d}:{(item.duration % 60000) // 1000:02d}'
+                            if item.duration >= 3600000 else
+                            f'{str(item.duration // 60000).zfill(2)}:{item.duration % 60000 // 1000:02d}'
+                        )
+                
+                # Add track to queue list string
                 queue_list += (
-                    f'\n**{queue_shown_size - i}.** '
-                    f'{item.author} - {item.title}'
-                    f' - `{track_duration_str}`' 
-                    if item.is_seekable else
-                    f'\n**{queue_shown_size - i}.** '
-                    f'{item.uri}'
-                    f' - `{track_duration_str}`'
-                )
+                        f'\n**{position}.** '
+                        f'{item.author} - {item.title}'
+                        f' - `{track_duration_str}`' 
+                        if item.is_seekable else
+                        f'\n**{position}.** '
+                        f'{item.uri}'
+                        f' - `{track_duration_str}`'
+                    )
             
             # Get current track information
             current_track = player.current
@@ -372,45 +380,62 @@ class MusicCog(commands.Cog):
 
     async def cleanup_music_channels(self):
         """
+        For all guilds:
         Remove messages from music text channels that are not the music message and create missing music messages.
         Set music message to default.
         Restore MusicPlayerView.
         """
         # Iterate through all guilds in `music_data.json`
         for guild_music_data in self.music_data.values():
-            # Get guild from guild ID
-            guild = self.bot.get_guild(guild_music_data.get('guild_id'))
-
-            # Get music text channel from ID
-            music_text_channel = guild.get_channel(guild_music_data.get('music_text_channel_id')) if guild else None
-
-            # If music text channel does not exist skip iteration
-            # Don't remove from music data because music data contains other information that should not be deleted
-            # in case music channel is created again (deafult volume, playlists, etc.)
-            if not music_text_channel:
-                continue
-
-            # get music message from ID
-            try:
-                music_message = await music_text_channel.fetch_message(guild_music_data.get('music_message_id')) if music_text_channel else None
-            except Exception as e:
-                music_message = None
-            
-            # delete all messages in music text channel that are not the music message
-            music_message_id = guild_music_data.get('music_message_id')
-            await music_text_channel.purge(check=lambda m: m.id != music_message_id, bulk=True)
-
-            # If music message does not exist, create it. Otherwise, set it to default
-            if not music_message:
-                await self.create_music_message(music_text_channel)
-            else:
-                # Get default music message
-                music_channel_text, embed = self.get_default_music_message()
-
-                # Set music message to default and restore MusicPlayerView
-                await music_message.edit(content=music_channel_text, embed=embed, view=MusicPlayerView(self.bot, self, guild))
+            # Clean music text channel for this guild
+            await self.cleanup_music_channel(guild_music_data)
 
         logger.info('Music text channels cleaned up, music messages set to default and MusicPlayerViews.')
+    
+    async def cleanup_music_channel(self, guild_music_data: dict):
+        """
+        For given guild:
+        Remove messages from music text channels that are not the music message and create missing music messages.
+        Set music message to default.
+        Restore MusicPlayerView.
+        """
+        # Get guild from guild ID
+        guild = self.bot.get_guild(guild_music_data.get('guild_id'))
+
+        # Get music text channel from ID
+        music_text_channel = guild.get_channel(guild_music_data.get('music_text_channel_id')) if guild else None
+
+        # If music text channel does not exist skip iteration
+        # Don't remove from music data because music data contains other information that should not be deleted
+        # in case music channel is created again (deafult volume, playlists, etc.)
+        # This note is important when called in cleanup_music_channels()
+        if not music_text_channel:
+            return
+
+        # get music message from ID
+        music_message_id = guild_music_data.get('music_message_id')
+        try:
+            music_message = await music_text_channel.fetch_message(music_message_id) if music_text_channel else None
+        except Exception as e:
+            music_message = None
+        
+        # delete all messages in music text channel that are not the music message
+        await music_text_channel.purge(check=lambda m: m.id != music_message_id, bulk=True)
+
+        # If music message does not exist, create it. Otherwise, set it to default
+        if not music_message:
+            await self.create_music_message(music_text_channel)
+        else:
+            # Get default music message
+            music_channel_text, embed = self.get_default_music_message()
+
+            # Get MusicPlayerView for this guild if it exists, otherwise create a new one
+            musicplayerview = self.get_musicplayerview(music_text_channel.guild.id)
+            if not musicplayerview:
+                musicplayerview = MusicPlayerView(self.bot, self, guild)
+
+            # Set music message to default and restore MusicPlayerView
+            await music_message.edit(content=music_channel_text, embed=embed, view=musicplayerview)
     
     ######################################
     ######### MUSIC PLAYER VIEW ##########
@@ -763,6 +788,37 @@ class MusicCog(commands.Cog):
             await self.update_music_embed(guild)
 
         return False
+    
+    ######################################
+    ######## AUXILIAR FUNCTIONS ##########
+    ######################################
+
+    async def playlist_autocomplete(self, interaction: discord.Interaction, current: str):
+        """Auxiliar function to autocomplete function for playlist names in inputs of / commands."""
+        return [
+            app_commands.Choice(name=pl_name, value=pl_name)
+            for pl_name in self.get_guild_music_data(interaction.guild.id).get('playlists', {}) if current.lower() in pl_name.lower()
+        ]
+    
+    @staticmethod
+    def is_valid_emoji(interaction: discord.Interaction, emoji: str):
+        """Checks if the emoji is valid (Unicode or custom guild emoji)."""
+        try:
+            # Attempt to create a PartialEmoji from the string
+            emoji = discord.PartialEmoji.from_str(emoji)
+            
+            # If it's a custom emoji, check if it exists in the guild
+            if emoji.is_custom_emoji():
+                if discord.utils.get(interaction.guild.emojis, id=emoji.id):
+                    return {'unicode': False, 'id': emoji.id, 'name': emoji.name}
+                return False
+            
+            # If it's a Unicode emoji, return emoji dictionary
+            return {'unicode': True, 'name': emoji.name}
+        
+        except Exception:
+            # If from_str fails, it's not a valid emoji
+            return False
 
     ######################################
     ############# COMMANDS ###############
@@ -771,66 +827,10 @@ class MusicCog(commands.Cog):
     ######################################
     ############ / COMMANDS ##############
     ######################################
-
-    async def cog_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
-        """
-        Handles errors for app_commands in this Cog.
-
-        NOTE: CommandInvokeError exceptions are raise during the command, and therefore after `await interaction.response.defer(ephemeral=True)``
-        has been called. Hence, for these use `await interaction.followup.send()` instead of `await interaction.response.send_message()`.
-        """
-
-        # Handle CheckFailure: An exception raised when check predicates in a command have failed.
-        if isinstance(error, app_commands.CheckFailure):
-
-            # Handle NoPrivateMessage: An exception raised when a command does not work in a direct message.
-            if isinstance(error, app_commands.NoPrivateMessage):
-                await interaction.response.send_message(embed=error_embed("This command cannot be used in private messages."), ephemeral=True)
-            
-            # Handle MissingPermissions: An exception raised when the command invoker lacks permissions to run a command.
-            elif isinstance(error, app_commands.MissingPermissions):
-                msg_text = 'You need the following permissions to run this command:'
-                for permission in error.missing_permissions:
-                    msg_text += f' `{permission}`,'
-                msg_text = msg_text[:-1]+'.'
-                await interaction.response.send_message(embed=error_embed(msg_text), ephemeral=True)
-            
-            # Handle BotMissingPermissions: An exception raised when the bot’s member lacks permissions to run a command.
-            elif isinstance(error, app_commands.BotMissingPermissions):
-                msg_text = 'I need the following permissions to run this command:'
-                for permission in error.missing_permissions:
-                    msg_text += f' `{permission}`,'
-                msg_text = msg_text[:-1]+'.'
-                await interaction.response.send_message(embed=error_embed(msg_text), ephemeral=True)
-            
-            # Handle CommandOnCooldown: An exception raised when the command being invoked is on cooldown.
-            elif isinstance(error, app_commands.CommandOnCooldown):
-                await interaction.response.send_message(embed=error_embed(f"This command is on cooldown. Try again in {error.retry_after:.2f} seconds."), ephemeral=True)
-            
-            # Handle MissingRole: An exception raised when the command invoker lacks a role to run a command.
-            elif isinstance(error, app_commands.MissingRole):
-                msg_text = 'You need the following role to run this command:'
-                await interaction.response.send_message(embed=error_embed(f'You need the following role to run this command: `{error.missing_role}`'), ephemeral=True)
-            
-            # Handle MissingAnyRole: An exception raised when the command invoker lacks any of the roles specified to run a command.
-            elif isinstance(error, app_commands.MissingAnyRole):
-                msg_text = 'You need at least one of the following roles to run this command:'
-                for role in error.missing_roles:
-                    msg_text += f' `{role}`,'
-                msg_text = msg_text[:-1]+'.'
-                await interaction.response.send_message(embed=error_embed(msg_text), ephemeral=True)
-            
-            # For other CheckFailure exceptions, like for example for cutom checks
-            else:
-                await interaction.response.send_message(embed=error_embed(f'An unexpected error has occured: {error}'), ephemeral=True)
-        
-        # Handle CommandInvokeError: An exception raised when the command being invoked raised an exception.
-        elif isinstance(error, app_commands.CommandInvokeError):
-            await interaction.followup.send(embed=error_embed(f'An unexpected error has occured: {error.original}'), ephemeral=True)
-        
-        # Handle rest of app_commands.AppCommandError exceptions
-        else:
-            await interaction.response.send_message(embed=error_embed(f'An unexpected error has occured: {error}'), ephemeral=True)
+    
+    ######################################
+    ###### DEFINE SETTINGS / COMMANDS ####
+    ######################################
 
     @app_commands.command(name='setup', description='Create music text channel')
     @app_commands.guild_only()  # Only allow command in guilds, not in private messages
@@ -884,38 +884,39 @@ class MusicCog(commands.Cog):
         await self.create_music_message(music_text_channel)
 
         # Infom user music text channel was created
-        await interaction.response.send_message(embed=success_embed(f'Music text channel created: {music_text_channel.mention}')) 
+        await interaction.response.send_message(embed=success_embed(f'Music text channel created: {music_text_channel.mention}'))
     
-    @app_commands.command(name='volume', description='Change bot\'s audio volume')
+    @app_commands.command(name='setup-fix', description='Recreate music text message in music text channel')
     @app_commands.guild_only()
-    @app_commands.checks.cooldown(1, 3.0)
-    @app_commands.checks.bot_has_permissions(embed_links=True)
-    @app_commands.describe(
-        volume="Set the player volume (0-200)"
-    )
-    async def volume(self, interaction: discord.Interaction, volume: app_commands.Range[int, 0, 200]):
-        """Change bot's audio volume."""
+    @app_commands.checks.cooldown(1, 10.0)
+    @app_commands.checks.has_permissions(manage_guild=True)
+    @app_commands.checks.bot_has_permissions(
+        read_message_history=True,
+        manage_messages=True,
+        send_messages=True,
+        embed_links=True
+    ) 
+    async def fix_setup(self, interaction: discord.Interaction):
+        """Fix music music text channel. Recreate music text message. Deletes all other messages in music text channel."""
+        # Get musicd data for this guild
+        guild_music_data = self.get_guild_music_data(interaction.guild.id)
+
+        # Get music text channel in case it exists in current guild, otherwise None
+        music_text_channel = interaction.guild.get_channel(guild_music_data.get('music_text_channel_id')) if guild_music_data else None
+
+        # If music text channel doesn't exist, inform user to /setup
+        if not music_text_channel:
+            await interaction.response.send_message(embed=warning_embed(f'Music text channel does not exist./nUse `/setup` to create one.'), ephemeral=True)
+            return
+        
         # Prevents the interaction from timing out
         await interaction.response.defer(ephemeral=True)
 
-        # Check if command should continue using check_and_join()
-        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=False)
-        if check:
-            await interaction.followup.send(embed=error_embed(check), ephemeral=True)
-            return
+        # Clean music text channel
+        await self.cleanup_music_channel(guild_music_data)
 
-        # Get player for this guild
-        player = self.lavalink.player_manager.get(interaction.guild.id)
-
-        # Set player volume
-        await player.set_volume(volume)
-
-        # Update music message embed
-        if player.is_playing:
-            await self.update_music_embed(interaction.guild)
-
-        # Send success message
-        await interaction.followup.send(embed=success_embed(f'Volume set to `{volume}%`'), ephemeral=True)
+        # Success message
+        await interaction.followup.send(embed=success_embed(f'Music text channel fixed.'))
     
     @app_commands.command(name='default-volume', description='Set the defauft volume when the bot joins a voice channel')
     @app_commands.guild_only()
@@ -985,18 +986,76 @@ class MusicCog(commands.Cog):
         else:
             await interaction.response.send_message(embed=success_embed(f'Default Loop Queue `disabled`'))
     
+    @app_commands.command(name='auto-disconnect', description='Enable or Disable auto-disconnect when idle. Change auto-disconnect idle timer.')
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 10.0)
+    @app_commands.checks.has_permissions(manage_guild=True)
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    @app_commands.choices(state=[
+    app_commands.Choice(name="Enable", value=1),
+    app_commands.Choice(name="Disable", value=0)
+    ])
+    @app_commands.describe(
+        state="Enable/Disable auto-disconnect",
+        timer="Set auto-disconnect idle timer in seconds",
+    )
+    async def set_idle_timer(self, interaction: discord.Integration, state: Optional[app_commands.Choice[int]] = None, timer: Optional[app_commands.Range[int, 10, 3600]] = None):
+        """Enable or Disable auto-disconnect when idle. Change auto-disconnect idle timer."""
+        # Check if any arguments used
+        if not state and not timer:
+            await interaction.response.send_message(embed=error_embed("You must provide at least one argument."), ephemeral=True)
+            return
+        
+        # Set state, if state provided
+        if state:
+            self.add_music_data(
+                guild_id=interaction.guild.id,
+                keys='auto_disconnect',
+                values=bool(state.value)
+            )
+
+        # Set timer, if timer provided
+        if timer:
+            self.add_music_data(
+                guild_id=interaction.guild.id,
+                keys='idle_timer',
+                values=timer
+            )
+        
+        # Send info message
+        if self.get_guild_music_data(interaction.guild.id).get('auto_disconnect', True):
+            await interaction.response.send_message(embed=info_embed(f'Auto-disconnect `enabled`.\nIdle timer: `{self.get_guild_music_data(interaction.guild.id).get('idle_timer', 300)}s`'))
+        else:
+            await interaction.response.send_message(embed=info_embed(f'Auto-disconnect `disabled`.'))
+    
+    ######################################
+    ######### PLAYLISTS / COMMANDS #######
+    ######################################
+    
     @app_commands.command(name='pl-add', description='Add playlist button to music message')
     @app_commands.guild_only()
     @app_commands.checks.cooldown(1, 5.0)
     @app_commands.checks.has_permissions(manage_guild=True)
     @app_commands.checks.bot_has_permissions(embed_links=True)
+    @app_commands.choices(shuffle=[
+    app_commands.Choice(name="Yes", value=1),
+    app_commands.Choice(name="No", value=0)
+    ])
     @app_commands.describe(
         name="Playlist name (1-50 characters)",
         url="Playlist url (Spotify, Youtube, Soundcloud, AppleMusic, etc.)",
         button_name="Playlist button name (1-8 characters)",
-        emoji="Playlist button emoji"
+        emoji="Playlist button emoji",
+        shuffle="If playlist should be shuffled when played. Default: `No`",
     )
-    async def set_playlist_add(self, interaction: discord.Interaction, name: app_commands.Range[str, 1, 50], url: str, button_name: Optional[app_commands.Range[str, 1, 8]] = None, emoji: Optional[str] = None):
+    async def set_playlist_add(self, 
+                               interaction: discord.Interaction, 
+                               name: app_commands.Range[str, 1, 50], 
+                               url: str, 
+                               button_name: Optional[app_commands.Range[str, 1, 8]] = None, 
+                               emoji: Optional[str] = None,
+                               shuffle: Optional[app_commands.Choice[int]] = None
+                               ):
         """Add playlist button to music message."""
         # Check if all inputs contain only ASCII characters
         if not name.isascii():
@@ -1034,41 +1093,9 @@ class MusicCog(commands.Cog):
             await interaction.response.send_message(embed=error_embed("At least one of `button_name` or `emoji` must be provided as input for this command."), ephemeral=True)
             return
         
-        # Auxiliar function to validate emoji
-        def is_valid_emoji(interaction: discord.Interaction, emoji: str):
-            """Checks if the emoji is valid (Unicode or custom guild emoji)."""
-            try:
-                # Check if the emoji is a custom emoji
-                if emoji.startswith('<:') and emoji.endswith('>'):
-                    # Extract the emoji ID and name
-                    emoji_id = int(emoji.split(':')[2][:-1])
-                    emoji_name = emoji.split(':')[1]
-
-                    # Check if the emoji exists in the guild
-                    if discord.utils.get(interaction.guild.emojis, id=emoji_id):
-                        return {'unicode': False, 'id': emoji_id, 'name': emoji_name}
-                    return False
-                
-                # Check if the emoji is a valid Unicode emoji
-                if len(emoji) == 1: # Single character emoji (e.g., 😊)
-                    if unicodedata.category(emoji) == "So":  # "So" stands for "Symbol, Other" (used for emojis)
-                        return {'unicode': True, 'name': emoji}
-                    return False
-                
-                if len(emoji) > 1: # Multi-character emoji (e.g., 👨‍👩‍👧‍👦)
-                    for char in emoji:
-                        if unicodedata.category(char) != "So":
-                            return False
-                    return {'unicode': True, 'name': emoji}
-                
-                return False
-
-            except Exception:
-                return False
-        
         # Validate emoji (Unicode or custom guild emoji)
         if emoji:
-            emoji_dict = is_valid_emoji(interaction, emoji)
+            emoji_dict = self.is_valid_emoji(interaction, emoji)
             if not emoji_dict:
                 await interaction.response.send_message(embed=error_embed("Invalid emoji. Use a Unicode emoji or a custom emoji from this server."), ephemeral=True)
                 return
@@ -1082,6 +1109,9 @@ class MusicCog(commands.Cog):
         if emoji:
             keys.append('emoji')
             values.append(emoji_dict)
+        if shuffle:
+            keys.append('shuffle')
+            values.append(bool(shuffle.value))
 
         # Add playlist to guild music data
         self.add_music_data(
@@ -1100,7 +1130,6 @@ class MusicCog(commands.Cog):
     @app_commands.command(name='pl-show', description='Show added playlists')
     @app_commands.guild_only()
     @app_commands.checks.cooldown(1, 10.0)
-    @app_commands.checks.has_permissions(manage_guild=True)
     @app_commands.checks.bot_has_permissions(embed_links=True)
     async def show_playlists(self, interaction: discord.Integration):
         """Show added playlists."""
@@ -1129,24 +1158,25 @@ class MusicCog(commands.Cog):
             # Add playlists to embed field
             embed.add_field(
                 name=f'',
-                value=f'**{i+1}.** **[{pl_name}]({playlists[pl_name].get('url')})**: {playlist_emoji} {playlists[pl_name].get('button_name','')}',
+                value=(
+                    f'**{i+1}.** **[{pl_name}]({playlists[pl_name].get('url')})**'
+                    f'\nButton: `{playlist_emoji} {playlists[pl_name].get('button_name','')}`'
+                    f'\nShuffle: `{playlists[pl_name].get("shuffle", False)}`'
+                ),
                 inline=False
             )
         embed.set_footer(text=f'/pl-add to add new playlists.\n/pl-remove to remove playlists.')
         await interaction.response.send_message(embed=embed)
 
-    async def playlist_autocomplete(self, interaction: discord.Interaction, current: str):
-        """Auxiliar function to autocomplete function for playlist names in inputs of / commands."""
-        return [
-            app_commands.Choice(name=pl_name, value=pl_name)
-            for pl_name in self.get_guild_music_data(interaction.guild.id).get('playlists', {}) if current.lower() in pl_name.lower()
-        ]
-    @app_commands.command(name='pl-remove', description='Remove playlists')
+    @app_commands.command(name='pl-remove', description='Remove playlist')
     @app_commands.guild_only()
     @app_commands.checks.cooldown(1, 5.0)
     @app_commands.checks.has_permissions(manage_guild=True)
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.autocomplete(name=playlist_autocomplete)
+    @app_commands.describe(
+        name="Name of playlists you wish to remove",
+    )
     async def remove_playlists(self, interaction: discord.Integration, name: str):
         """Remove playlists."""
         # Check if playlist exists
@@ -1165,6 +1195,272 @@ class MusicCog(commands.Cog):
             return
         await interaction.response.send_message(embed=warning_embed(f'Playlist named `{name}` not found.\nUse `/pl-show` to see list of existing playlists.'),
                                                 ephemeral=True)
+    
+    ######################################
+    ########## PLAYER / COMMANDS #########
+    ######################################
+    
+    @app_commands.command(name='volume', description='Change bot\'s audio volume')
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 3.0)
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    @app_commands.describe(
+        volume="Set the player volume (0-200)"
+    )
+    async def volume(self, interaction: discord.Interaction, volume: app_commands.Range[int, 0, 200]):
+        """Change bot's audio volume."""
+        # Check if command should continue using check_and_join()
+        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=False)
+        if check:
+            await interaction.response.send_message(embed=error_embed(check), ephemeral=True)
+            return
+
+        # Get player for this guild
+        player = self.lavalink.player_manager.get(interaction.guild.id)
+
+        # Set player volume
+        await player.set_volume(volume)
+
+        # Update music message embed
+        if player.is_playing:
+            await self.update_music_embed(interaction.guild)
+
+        # Send success message
+        await interaction.response.send_message(embed=success_embed(f'Volume set to `{volume}%`'), delete_after=7)
+    
+    @app_commands.command(name='seek', description='Skips to a specified time in the current song')
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 3.0)
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    @app_commands.describe(
+        time="Time to skip to (in seconds)",
+    )
+    async def seek_time(self, interaction: discord.Integration, time: app_commands.Range[int, 0, 999999999]):
+        """Skips to a specific time in the current song."""
+        # Check if command should continue using check_and_join()
+        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=True)
+        if check:
+            await interaction.response.send_message(embed=error_embed(check), ephemeral=True)
+            return
+
+        # Get player for this guild
+        player = self.lavalink.player_manager.get(interaction.guild.id)
+
+        # Get current track
+        current_track = player.current
+
+        # Get current track duration
+        current_track_duration = current_track.duration / 1000
+
+        # Check if given time is valid
+        if time > current_track_duration:
+            await interaction.response.send_message(embed=error_embed(f'Invalid time. Current track is `{int(current_track_duration)}` seconds long.'), ephemeral=True)
+            return
+
+        # Seek to given time
+        await player.seek(time * 1000)
+
+        # Send success message
+        await interaction.response.send_message(embed=success_embed(f'Skipped to `{time}` seconds'), delete_after=7)
+    
+    @app_commands.command(name='fast-forward', description='Fast forwards the current track by a specificied ammount. Default is 15 seconds.')
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 3.0)
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    @app_commands.describe(
+        time="Time to fast forward by (in seconds)",
+    )
+    async def fast_forward(self, interaction: discord.Integration, time: Optional[app_commands.Range[int, 0, 999999999]] = 15):
+        """Fast forwards the current track by a specificied ammount. Default is 15 seconds."""
+        # Check if command should continue using check_and_join()
+        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=True)
+        if check:
+            await interaction.response.send_message(embed=error_embed(check), ephemeral=True)
+            return
+
+        # Get player for this guild
+        player = self.lavalink.player_manager.get(interaction.guild.id)
+
+        # Seek to given time
+        await player.seek(player.position + time * 1000)
+
+        # Send success message
+        await interaction.response.send_message(embed=success_embed(f'Fast forwarded by `{time}` seconds.\nNew position: `{int(player.position / 1000)}s`'), delete_after=7)
+    
+    @app_commands.command(name='rewind', description='Rewinds the current track by a specificied ammount. Default is 15 seconds.')
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 3.0)
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    @app_commands.describe(
+        time="Time to rewind by (in seconds)",
+    )
+    async def rewind(self, interaction: discord.Integration, time: Optional[app_commands.Range[int, 0, 999999999]] = 15):
+        """Rewinds the current track by a specificied ammount. Default is 15 seconds."""
+        # Check if command should continue using check_and_join()
+        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=True)
+        if check:
+            await interaction.response.send_message(embed=error_embed(check), ephemeral=True)
+            return
+
+        # Get player for this guild
+        player = self.lavalink.player_manager.get(interaction.guild.id)
+
+        # Seek to given time
+        await player.seek(player.position - time * 1000)
+
+        # Send success message
+        await interaction.response.send_message(embed=success_embed(f'Rewound by `{time}` seconds.\nNew position: `{int(player.position / 1000)}s`'), delete_after=7)
+    
+    @app_commands.command(name='clear-queue', description='Clear the queue')
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 5.0)
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    async def clear_queue(self, interaction: discord.Integration):
+        """Clear the queue."""
+        # Check if command should continue using check_and_join()
+        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=True)
+        if check:
+            await interaction.response.send_message(embed=error_embed(check), ephemeral=True)
+            return
+
+        # Get player for this guild
+        player = self.lavalink.player_manager.get(interaction.guild.id)
+
+        # Clear queue
+        player.queue.clear()
+
+        # Update music message embed
+        await self.update_music_embed(interaction.guild)
+
+        # Send success message
+        await interaction.response.send_message(embed=success_embed(f'Queue cleared.'), delete_after=7)
+    
+    @app_commands.command(name='jump', description='Jump to specified track in the queue')
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 5.0)
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    @app_commands.describe(
+        position="Position of track in queue",
+    )
+    async def jump(self, interaction: discord.Integration, position: app_commands.Range[int, 1, 999999999]):
+        """Jump to specified track in the queue."""
+        # Check if command should continue using check_and_join()
+        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=True)
+        if check:
+            await interaction.response.send_message(embed=error_embed(check), ephemeral=True)
+            return
+
+        # Get player for this guild
+        player = self.lavalink.player_manager.get(interaction.guild.id)
+
+        # Get queue list
+        queue = player.queue
+
+        # Check if given position is valid
+        if position > len(queue):
+            await interaction.response.send_message(embed=error_embed(f'Position must be between `1` and `{len(queue)}`.'), ephemeral=True)
+            return
+
+        # Check if loop queue is enabled
+        if player.loop == player.LOOP_QUEUE:
+            player.queue = queue[position - 1:] + queue[:position - 1]
+        else:
+            player.queue = queue[position - 1:]
+        
+        # Play selected track
+        if player.loop == player.LOOP_SINGLE:
+            await player.play(player.queue.pop(0))
+        else:
+            await player.skip()
+
+        # Send success message
+        await interaction.response.send_message(embed=success_embed(f'Jumped to position `{position}` in queue.'), delete_after=7)
+    
+    @app_commands.command(name='remove', description='Remove specified track from queue')
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 5.0)
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    @app_commands.describe(
+        position="Position of track in queue",
+    )
+    async def remove_from_queue(self, interaction: discord.Integration, position: app_commands.Range[int, 1, 999999999]):
+        """Remove specified track from queue"""
+        # Check if command should continue using check_and_join()
+        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=True)
+        if check:
+            await interaction.response.send_message(embed=error_embed(check), ephemeral=True)
+            return
+
+        # Get player for this guild
+        player = self.lavalink.player_manager.get(interaction.guild.id)
+
+        # Get queue list
+        queue = player.queue
+
+        # Check if given position is valid
+        if position > len(queue):
+            await interaction.response.send_message(embed=error_embed(f'Position must be between `1` and `{len(queue)}`.'), ephemeral=True)
+            return
+
+        # Remove track from queue
+        removed_track = player.queue.pop(position-1)
+
+        # Update music message embed
+        await self.update_music_embed(interaction.guild)
+
+        # Send success message
+        message = (
+            f'Track `{position}. {removed_track.author} - {removed_track.title}` removed from queue.'
+            if removed_track.is_seekable else
+            f'Track `{position}. {removed_track.uri}` removed from queue.'
+        )
+        await interaction.response.send_message(embed=success_embed(message), delete_after=7)
+    
+    @app_commands.command(name='move', description='Move specified track in queue')
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 5.0)
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    @app_commands.rename(
+    frrom="from"  
+    )
+    @app_commands.describe(
+        frrom="Current position of track in queue",
+        to="New position of track in queue"
+    )
+    async def move(self, interaction: discord.Integration, frrom: app_commands.Range[int, 1, 999999999], to: app_commands.Range[int, 1, 999999999]):
+        """Move specified track in queue."""
+        # Check if command should continue using check_and_join()
+        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=True)
+        if check:
+            await interaction.response.send_message(embed=error_embed(check), ephemeral=True)
+            return
+
+        # Get player for this guild
+        player = self.lavalink.player_manager.get(interaction.guild.id)
+
+        # Check if given from position is valid
+        if frrom > len(player.queue):
+            await interaction.response.send_message(embed=error_embed(f'`from` position must be between `1` and `{len(player.queue)}`.'), ephemeral=True)
+            return
+
+        # Check if to position is valid
+        if to > len(player.queue):
+            to = len(player.queue)
+
+        # Move track in queue
+        track = player.queue.pop(frrom-1)
+        player.queue.insert(to-1, track)
+
+        # Update music message embed
+        await self.update_music_embed(interaction.guild)
+
+        # Send success message
+        message = (
+            f'Moved track `{track.author} - {track.title}` from **{frrom}.** to **{to}.** in queue.'
+            if track.is_seekable else
+            f'Moved track `{track.uri}` from **{frrom}.** to **{to}.** in queue.'
+        )
+        await interaction.response.send_message(embed=success_embed(message), delete_after=7)
 
 async def setup(bot):
     # Add MusicCog to bot instance

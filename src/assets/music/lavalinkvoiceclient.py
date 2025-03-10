@@ -3,7 +3,7 @@ import lavalink
 from lavalink.errors import ClientError
 import asyncio
 from assets.logger.logger import debug_logger
-from assets.replies.reply_embed import error_embed, success_embed, warning_embed
+from assets.utils.reply_embed import error_embed, success_embed, warning_embed
 
 class LavalinkVoiceClient(discord.VoiceProtocol):
     """
@@ -36,17 +36,18 @@ class LavalinkVoiceClient(discord.VoiceProtocol):
         self.idle_task = None
     
     async def start_idle_timer(self):
-        """Starts a 10-minute timer to disconnect if idle."""
+        """Starts a idle timer to disconnect if idle."""
         # Stop task if it exists
         self.stop_idle_timer()
 
-        # Start new task
-        self.idle_task = asyncio.create_task(self._check_idle_disconnect())
-    
+        # Start new task, if auto-disconnect is enabled
+        if self.cog.get_guild_music_data(self.guild_id).get('auto_disconnect', True):
+            self.idle_task = asyncio.create_task(self._check_idle_disconnect())
+
     async def _check_idle_disconnect(self):
-        """Background task to check for 10 minutes of continuous inactivity"""
-        # Wait 10 minutes
-        await asyncio.sleep(300)
+        """Background task to check for idle time of continuous inactivity."""
+        # Wait idle timer
+        await asyncio.sleep(self.cog.get_guild_music_data(self.guild_id).get('idle_timer', 300))
 
         # Get player for this guild
         player = self.lavalink.player_manager.get(self.guild_id)
@@ -59,7 +60,7 @@ class LavalinkVoiceClient(discord.VoiceProtocol):
             guild_music_data = self.cog.get_guild_music_data(self.guild_id)
             music_text_channel = self.guild.get_channel(guild_music_data['music_text_channel_id']) if guild_music_data else None
             if music_text_channel:
-                await music_text_channel.send(embed=warning_embed("I left the voice channel due to inactivity."), 
+                await music_text_channel.send(embed=warning_embed(f"I left the voice channel due to inactivity.\nUse `/auto-disconnect` to disable the auto-disconnect or change the idle timer."), 
                                                 delete_after=15)
             
     def stop_idle_timer(self):

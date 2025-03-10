@@ -4,8 +4,12 @@ from discord.ext import commands
 from discord.ui import Button, View
 from lavalink.events import QueueEndEvent
 import random
-from assets.replies.reply_embed import error_embed, success_embed, warning_embed
+from assets.utils.reply_embed import error_embed, success_embed, warning_embed
 from assets.music.playlistbutton import PlaylistButton
+
+# (https://discordpy.readthedocs.io/en/stable/interactions/api.html#discord.ui.View)
+# Add on_timeout() and on_error(interaction, error, item, /)
+# To handle these gracefully, (maybe without logging them as these are guild related)
 
 class MusicPlayerView(View):
     """Class to control View with buttons for music message. Each music message has its own View instance."""
@@ -197,6 +201,7 @@ class MusicPlayerView(View):
                 # Create playlist button
                 playlist_button = PlaylistButton(
                     url=playlists[pl_name].get('url'),
+                    shuffle=playlists[pl_name].get('shuffle', False),
                     style=discord.ButtonStyle.grey,
                     emoji=playlist_emoji,
                     label=playlists[pl_name].get('button_name', None),

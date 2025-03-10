@@ -9,7 +9,7 @@ services:
       - _JAVA_OPTIONS=-Xmx6G
       # set lavalink server port
       - SERVER_PORT=${SERVER_PORT}
-      # set lavalink server address
+      # set lavalink server address (set to lavalink container name)
       - SERVER_ADDRESS=${SERVER_ADDRESS}
       # set password for lavalink
       - LAVALINK_SERVER_PASSWORD=${LAVALINK_SERVER_PASSWORD}
