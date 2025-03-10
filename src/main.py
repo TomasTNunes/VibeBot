@@ -55,7 +55,7 @@ async def on_ready():
         logger.error(f'Failed to sync commands: {e}')
 
 @bot.event
-async def on_command_error(ctx, error):
+async def on_command_error(ctx: commands.Context, error: commands.CommandError):
     """
     The default command error handler provided by the bot. 
     This only fires if you do not specify any listeners for command error.
