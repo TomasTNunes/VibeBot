@@ -74,7 +74,7 @@ async def on_command_error(ctx: commands.Context, error: commands.CommandError):
 @bot.tree.error
 async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     """
-    Handles errors for app_commands in this Cog.
+    Handles errors for app_commands.
 
     NOTE: CommandInvokeError exceptions are raise during the command, and therefore sometimes after `await interaction.response.defer(ephemeral=True)``
     has been called. Hence, for these use `await interaction.followup.send()` instead of `await interaction.response.send_message()` when needed.
