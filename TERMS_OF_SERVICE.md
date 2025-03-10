@@ -8,10 +8,10 @@ VibeBot is a music bot that facilitates music playback in Discord servers. It cr
 
 ## 3. Data Collection
 VibeBot stores the following data:
-- Guild ID, music text channel ID, and music message ID.
-- [Optional] User-defined settings related to music playback.
-- [Optional] Playlist URLs and names.
-- [Optional] Additional settings may be introduced in future updates.
+- Guild ID, music text channel ID, and music message ID to manage the music system per server.
+- User-defined settings to provide customization options (if configured).
+- Playlist URLs and names to store user-created playlists (if added).
+- Additional settings may be introduced in future updates and will only be stored if added by the users.
 
 This data is necessary for the bot's functionality and is not shared with third parties.
 
