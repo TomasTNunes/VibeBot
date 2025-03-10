@@ -1,11 +1,12 @@
 import discord
+import os
 
 class InviteButtonView(discord.ui.View):
     """A view with an invite button, to be used with /invite"""
     def __init__(self):
         super().__init__()
         # Invite url
-        self.inv_url = 'https://discord.com/oauth2/authorize?client_id=1343092449702187028'
+        self.inv_url = os.getenv('INVITE_LINK')
 
         # Invite Button
         self.add_item(discord.ui.Button(
