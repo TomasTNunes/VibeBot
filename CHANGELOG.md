@@ -1,6 +1,71 @@
 # CHANGELOG
 
 
+## v1.3.0 (2025-03-10)
+
+### Bug Fixes
+
+- Allow all available emoji buttons
+  ([`2d3068c`](https://github.com/TomasTNunes/VibeBot/commit/2d3068cf1eaf4702ef1412e63db0727e43565c71))
+
+- Handle CommandNotFound errors gracefully
+  ([`0b65a50`](https://github.com/TomasTNunes/VibeBot/commit/0b65a504b394b26afc1295556335b615e8e0eb7d))
+
+- Show queue time beyond next 15 tracks
+  ([`824e003`](https://github.com/TomasTNunes/VibeBot/commit/824e003aaf7113048c2eca422899c2fab6304f64))
+
+### Code Style
+
+- Change /pl-show layout
+  ([`cd7d8d5`](https://github.com/TomasTNunes/VibeBot/commit/cd7d8d5c3cde08da55f382ab54550673626aa0d2))
+
+### Features
+
+- Add / invite button
+  ([`1eb6fed`](https://github.com/TomasTNunes/VibeBot/commit/1eb6fed55565bbdea4d279b1b0d8e80f479682b2))
+
+- Add auto-disconnect / command
+  ([`e6fe783`](https://github.com/TomasTNunes/VibeBot/commit/e6fe7833b6a209cef5749e61b452d1956a133f39))
+
+- Add jump to track in queue / command
+  ([`51144be`](https://github.com/TomasTNunes/VibeBot/commit/51144be174b508a9a283db5f442f73f505f3e2dc))
+
+- Add move track in queue / command
+  ([`61704d3`](https://github.com/TomasTNunes/VibeBot/commit/61704d3935c061027cab438ce707bd685212c29c))
+
+- Add ping / command
+  ([`ac8790e`](https://github.com/TomasTNunes/VibeBot/commit/ac8790ed34188c46bcd1124f9a26973f636a3ced))
+
+- Add remove track from queue / command
+  ([`fab1e46`](https://github.com/TomasTNunes/VibeBot/commit/fab1e4658b00e1db32cd5b3eaeef72284c2e0e5e))
+
+- Add seek track time / command
+  ([`ff00717`](https://github.com/TomasTNunes/VibeBot/commit/ff0071717df2874a4a8d807e997d812f03212669))
+
+- Add setup-fix / command
+  ([`ee5b5f8`](https://github.com/TomasTNunes/VibeBot/commit/ee5b5f8860dfe03365f209f52d19a06260f1569b))
+
+- Add shuffle option for playlists
+  ([`e228515`](https://github.com/TomasTNunes/VibeBot/commit/e228515db7b36462dc4d7917068888b5989f33a3))
+
+- Clear queue / command
+  ([`f3338d0`](https://github.com/TomasTNunes/VibeBot/commit/f3338d04073b03caa11ee3202586749e338b4bff))
+
+- Fast forward and rewind / commands
+  ([`66f9ac8`](https://github.com/TomasTNunes/VibeBot/commit/66f9ac83937ccbe8d0db0b7a78f4acc4187dcb89))
+
+### Refactoring
+
+- Add comment on MusicPlayerView for toDO
+  ([`ec6e5ca`](https://github.com/TomasTNunes/VibeBot/commit/ec6e5ca862a50dc79a4b7aa0bbe1b9b8f83c5788))
+
+- Fix typo in comment
+  ([`63c49c0`](https://github.com/TomasTNunes/VibeBot/commit/63c49c0dc8a4428c3b4c81bfcb3f070b17d87651))
+
+- Put bot invite link as environment variable
+  ([`58b825d`](https://github.com/TomasTNunes/VibeBot/commit/58b825da516e686ca3fcd9960b4a37eac7439b20))
+
+
 ## v1.2.1 (2025-03-06)
 
 ### Bug Fixes
@@ -97,6 +162,18 @@
 
 - Run vibebot in docker ([#2](https://github.com/TomasTNunes/VibeBot/pull/2),
   [`30a1cca`](https://github.com/TomasTNunes/VibeBot/commit/30a1ccad47d6979f7203bb756c28a47043bd58ad))
+
+* chore: rename lavalink docker compose yml
+
+* chore: update logs
+
+* chore: lavalink docker compose identation
+
+* feat: vibebot docker
+
+---------
+
+Co-authored-by: TomasTNunes <tomastrindadenunes@outlook.pt>
 
 - **lavalink**: Add applemuisc with default tokens/keys
   ([`d6e1c26`](https://github.com/TomasTNunes/VibeBot/commit/d6e1c26a2f61ea10387bbf88a00d9e53ea78193e))
