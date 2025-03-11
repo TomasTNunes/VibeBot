@@ -873,11 +873,11 @@ class MusicCog(commands.Cog):
                     f'{str(track.duration // 60000).zfill(2)}:{track.duration % 60000 // 1000:02d}'
                 )
             description += (
-                f'**[{i+1}]** `-` '
+                f'**[{(current_page-1)*10+i+1}]** `-` '
                 f'[{track.author} - {track.title}]({track.uri})'
                 f' - `{track_duration_str}`\n' 
                 if track.is_seekable else
-                f'**[{i+1}]** `-` '
+                f'**[{(current_page-1)*10+i+1}]** `-` '
                 f'{track.uri}'
                 f' - `{track_duration_str}`\n'
             )
@@ -1649,7 +1649,7 @@ class MusicCog(commands.Cog):
         # Get queue time in ms
         queue_time = 0
         queue_time = sum(t.duration for t in queue if not t.is_stream)
-        queue_time += current_track.duration if not current_track.is_stream else 0
+        queue_time += current_track.duration if current_track and not current_track.is_stream else 0
 
         # Get first 10 or less tracks to show
         if queue_size > 10:
@@ -1659,7 +1659,7 @@ class MusicCog(commands.Cog):
 
         # Gat total number of pages
         total_pages = queue_size // 10
-        total_pages += 1 if queue_size % 10 else 0
+        total_pages += 1 if queue_size % 10 or queue_size == 0 else 0
         
         # Create embed
         embed = self.queue_embed(interaction.guild, 
@@ -1671,7 +1671,7 @@ class MusicCog(commands.Cog):
                                  total_pages)
 
         # Send embed
-        await interaction.response.send_message(embed=embed, view=QueueButtonsView(), ephemeral=True)
+        await interaction.response.send_message(embed=embed, view=QueueButtonsView(self, interaction.guild, 1, total_pages), ephemeral=True)
 
 async def setup(bot):
     # Add MusicCog to bot instance
