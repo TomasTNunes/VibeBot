@@ -1188,41 +1188,56 @@ class MusicCog(commands.Cog):
     @app_commands.guild_only()
     @app_commands.checks.cooldown(1, 10.0)
     @app_commands.checks.bot_has_permissions(embed_links=True)
-    async def show_playlists(self, interaction: discord.Integration):
+    async def show_playlists(self, interaction: discord.Interaction):
         """Show added playlists."""
         # Get playlists dictionary
         playlists = self.get_guild_music_data(interaction.guild.id).get('playlists')
 
         # Check if there are playlists
         if not playlists or len(playlists) == 0:
-            await interaction.response.send_message(embed=info_embed('No playlists have been added yet.\nUse `/pl-add` to add a playlist.'))
+            await interaction.response.send_message(embed=info_embed('🎵 No playlists have been added yet.\nUse `/pl-add` to add a playlist.'))
             return
 
-        # Embed with playlists info
-        embed = Embed(color = discord.Colour.from_rgb(137, 76, 193), title='Playlists:')
+        # Create embed
+        embed = discord.Embed(
+            color=discord.Colour.from_rgb(137, 76, 193),
+            title="📂 Your Playlists",
+            description=""
+        )
+
+        # Loop through playlists
         for i, pl_name in enumerate(playlists):
-            # Get playlist emoji if exists
-            if playlists[pl_name].get('emoji'):
-                if playlists[pl_name].get('emoji').get('unicode'):
-                    playlist_emoji = playlists[pl_name].get('emoji').get('name')
+            playlist = playlists[pl_name]
+            
+            # Get emoji
+            emoji = ""
+            if playlist.get('emoji'):
+                if playlist['emoji'].get('unicode'):
+                    emoji = playlist['emoji']['name']
                 else:
-                    playlist_emoji = PartialEmoji(
-                        name=playlists[pl_name].get('emoji').get('name'),
-                        id = playlists[pl_name].get('emoji').get('id')
-                    )
-            else:
-                playlist_emoji = ''
-            # Add playlists to embed field
+                    emoji = f"<:{playlist['emoji']['name']}:{playlist['emoji']['id']}>"
+
+            # Get button label
+            button_label = playlist.get('button_name', '')
+
+            # Combine emoji and button label (ensure no extra spaces)
+            button_display = f"{emoji} {button_label}".strip()
+
+            # Format playlist details
             embed.add_field(
-                name=f'',
+                name='',
                 value=(
-                    f'**{i+1}.** **[{pl_name}]({playlists[pl_name].get('url')})**'
-                    f'\nButton: `{playlist_emoji} {playlists[pl_name].get('button_name','')}`'
-                    f'\nShuffle: `{playlists[pl_name].get("shuffle", False)}`'
+                    f"**{i+1}.** 🎶  **[{pl_name}]({playlist['url']})**  🎶\n"
+                    f"*Button:* `{button_display}`\n"
+                    f"*Shuffle:* `{playlist.get('shuffle', False)}`"
                 ),
                 inline=False
             )
-        embed.set_footer(text=f'/pl-add to add new playlists.\n/pl-remove to remove playlists.')
+
+        # Footer
+        embed.set_footer(text="➕ Use /pl-add to add a playlist\n➖ Use /pl-remove to a playlist")
+
+        # Send embed
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name='pl-remove', description='Remove playlist')
