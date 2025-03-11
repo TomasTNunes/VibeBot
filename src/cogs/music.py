@@ -12,6 +12,7 @@ from typing import Union, List, Any, Optional
 from assets.logger.logger import music_logger as logger, music_data_logger, debug_logger
 from assets.music.lavalinkvoiceclient import LavalinkVoiceClient
 from assets.music.musicplayerview import MusicPlayerView
+from assets.music.queuebuttonsview import QueueButtonsView
 from assets.utils.reply_embed import error_embed, success_embed, warning_embed, info_embed
 
 url_rx = re.compile(r'https?://(?:www\.)?.+')
@@ -276,15 +277,13 @@ class MusicCog(commands.Cog):
         guild_music_data = self.get_guild_music_data(guild.id)
 
         # get music text channel from ID
-        music_text_channel = guild.get_channel(guild_music_data.get('music_text_channel_id')) if guild_music_data else None
+        music_text_channel = guild.get_channel(guild_music_data.get('music_text_channel_id'))
         if not music_text_channel:
             return
 
         # get music message from ID
         try:
-            music_message = await music_text_channel.fetch_message(guild_music_data.get('music_message_id')) if music_text_channel else None
-            if not music_message:
-                return
+            music_message = await music_text_channel.fetch_message(guild_music_data.get('music_message_id'))
         except Exception as e:
             return
 
@@ -468,8 +467,6 @@ class MusicCog(commands.Cog):
         # get music message from ID if it exists, otherwise return
         try:
             music_message = await music_text_channel.fetch_message(guild_music_data.get('music_message_id'))
-            if not music_message:
-                return
         except Exception as e:
             return
 
@@ -551,7 +548,7 @@ class MusicCog(commands.Cog):
             else:
                 # inform user that last track must be from spotify for now
                 guild_music_data = self.get_guild_music_data(guild_id)
-                music_text_channel = self.bot.get_channel(guild_music_data.get('music_text_channel_id')) if guild_music_data else None
+                music_text_channel = self.bot.get_channel(guild_music_data.get('music_text_channel_id'))
                 if music_text_channel:
                     await music_text_channel.send(embed=warning_embed('`AutoPlay` only works if last music track is from spotify.'), delete_after=15)  
             
@@ -594,35 +591,47 @@ class MusicCog(commands.Cog):
         if not message.guild:
             return
         
+        # Ignore message from VibeBot
+        if message.author == self.bot.user:
+            return
+        
         # Get music data for this guild in case it exists, otherwise None
         guild_music_data = self.get_guild_music_data(message.guild.id)
-        music_text_channel_id = guild_music_data.get('music_text_channel_id') if guild_music_data else None
+        music_text_channel_id = guild_music_data.get('music_text_channel_id')
 
         # Check is message is from a music text channel, and not from VibeBot
-        if music_text_channel_id == message.channel.id and message.author != self.bot.user:
-            # If message is not from a bot send the message to play function
-            if not message.author.bot:
-                # Check if bot should join and create player
-                check = await self.check_and_join(message.author, message.guild, should_connect=True, should_bePlaying=False)
-                if check:
-                    await message.channel.send(embed=error_embed(check), delete_after=15)
+        if music_text_channel_id == message.channel.id:
 
-                else:
-                    # Add query to queue and send message if not successful
-                    add_to_queue_check = await self.add_to_queue(message.content, message.author, message.guild)
-                    if add_to_queue_check:
-                        await message.channel.send(embed=error_embed(add_to_queue_check), delete_after=15)
+            # Delete message asynchronously without blovking rest of function (running in parallel task)
+            async def delete_message():
+                try:
+                    await message.delete()
+                except discord.Forbidden:
+                    await message.channel.send(
+                        embed=error_embed("I need `manage_messages`, `read_message_history`, and `view_channel` permissions in this text channel."),
+                        delete_after=15
+                    )
+                except discord.NotFound:
+                    pass
+                except Exception as e:
+                    pass
+            asyncio.create_task(delete_message())
+
+            # Check if message is not from other bot    
+            if message.author.bot:
+                return
             
-            # Delete all the messages in the music text channel that are not from VibeBot
-            try:
-                await message.delete()
-            except discord.Forbidden:
-                await message.channel.send(embed=error_embed("I need `manage_messages`, `read_message_history` and `view_channel` permissions in this text channel."),
-                                        delete_after=15)
-            except discord.NotFound:
-                pass
-            except Exception as e:
-                pass      
+            # Check if bot should join and create player
+            check = await self.check_and_join(message.author, message.guild, should_connect=True, should_bePlaying=False)
+            if check:
+                await message.channel.send(embed=error_embed(check), delete_after=15)
+                return
+
+            # Add query to queue and send message if not successful
+            add_to_queue_check = await self.add_to_queue(message.content, message.author, message.guild)
+            if add_to_queue_check:
+                await message.channel.send(embed=error_embed(add_to_queue_check), delete_after=15)
+                return
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild: discord.Guild):
@@ -819,6 +828,85 @@ class MusicCog(commands.Cog):
         except Exception:
             # If from_str fails, it's not a valid emoji
             return False
+    
+    @staticmethod
+    def queue_embed(guild: discord.Guild, 
+                    current_track: lavalink.AudioTrack, 
+                    queue: list[lavalink.AudioTrack],
+                    queue_size: int, 
+                    queue_time: int,
+                    current_page: int,
+                    total_pages: int):
+        """Creates an embed for the queue."""
+        # Initialize description of embed
+        description = ""
+
+        # Format current track
+        current_track_str = None
+        if current_track:
+            current_track_duration_str = (
+                f'{str(current_track.duration // 3600000).zfill(2)}:{(current_track.duration % 3600000) // 60000:02d}:{(current_track.duration % 60000) // 1000:02d}'
+                if current_track.duration >= 3600000 else
+                f'{str(current_track.duration // 60000).zfill(2)}:{current_track.duration % 60000 // 1000:02d}'
+            )
+            current_track_str=(
+                f'[{current_track.author} - {current_track.title}]({current_track.uri})'
+                f' - `{current_track_duration_str}`'
+                if current_track.is_seekable else
+                f'{current_track.uri}'
+                f' - `{current_track_duration_str}`'
+            )
+        description += '**♪ Now playing**\n'
+        description += f'> {current_track_str}\n\n' if current_track_str else '> `No music`\n\n'
+
+        # Format queue
+        description += f'**🎶 Tracks in queue({queue_size})**\n'
+        if len(queue) == 0:
+            description += '> `No track in queue`'
+        for i,track in enumerate(queue):
+            if track.is_stream:
+                track_duration_str = 'LIVE'
+            else:
+                track_duration_str = (
+                    f'{str(track.duration // 3600000).zfill(2)}:{(track.duration % 3600000) // 60000:02d}:{(track.duration % 60000) // 1000:02d}'
+                    if track.duration >= 3600000 else
+                    f'{str(track.duration // 60000).zfill(2)}:{track.duration % 60000 // 1000:02d}'
+                )
+            description += (
+                f'**[{i+1}]** `-` '
+                f'[{track.author} - {track.title}]({track.uri})'
+                f' - `{track_duration_str}`\n' 
+                if track.is_seekable else
+                f'**[{i+1}]** `-` '
+                f'{track.uri}'
+                f' - `{track_duration_str}`\n'
+            )
+
+        # Create embed
+        embed = Embed(
+            color=discord.Colour.from_rgb(137, 76, 193),
+            title=f"{guild.name} Queue",
+            description=description
+        )
+
+        # Format queue time
+        queue_time_str = (
+            f'{str(queue_time // 3600000).zfill(2)}:{(queue_time % 3600000) // 60000:02d}:{(queue_time % 60000) // 1000:02d}'
+            if queue_time >= 3600000 else
+            f'{str(queue_time // 60000).zfill(2)}:{queue_time % 60000 // 1000:02d}'
+        )
+        embed.add_field(
+            name='**⏱ Queue time**',
+            value=f'> `{queue_time_str}`',
+            inline=False
+        )
+
+        # Set footer with pages
+        embed.set_footer(
+            text=f'Page: {current_page}/{total_pages}'
+        )
+
+        return embed
 
     ######################################
     ############# COMMANDS ###############
@@ -853,7 +941,7 @@ class MusicCog(commands.Cog):
         """Setup music text channel, if it doesn't exists."""
         # Get guild music data and music text channel id
         guild_music_data = self.get_guild_music_data(interaction.guild.id)
-        music_text_channel_id = guild_music_data.get('music_text_channel_id') if guild_music_data else None
+        music_text_channel_id = guild_music_data.get('music_text_channel_id')
 
         # Get music text channel in case it exists in current guild, otherwise None
         music_text_channel = interaction.guild.get_channel(music_text_channel_id)
@@ -902,7 +990,7 @@ class MusicCog(commands.Cog):
         guild_music_data = self.get_guild_music_data(interaction.guild.id)
 
         # Get music text channel in case it exists in current guild, otherwise None
-        music_text_channel = interaction.guild.get_channel(guild_music_data.get('music_text_channel_id')) if guild_music_data else None
+        music_text_channel = interaction.guild.get_channel(guild_music_data.get('music_text_channel_id'))
 
         # If music text channel doesn't exist, inform user to /setup
         if not music_text_channel:
@@ -1038,7 +1126,7 @@ class MusicCog(commands.Cog):
         guild_music_data = self.get_guild_music_data(interaction.guild.id)
 
         # Get music text channel
-        music_text_channel = interaction.guild.get_channel(guild_music_data.get('music_text_channel_id')) if guild_music_data else None
+        music_text_channel = interaction.guild.get_channel(guild_music_data.get('music_text_channel_id'))
         
         # Get music message
         try:
@@ -1227,7 +1315,7 @@ class MusicCog(commands.Cog):
             embed.add_field(
                 name='',
                 value=(
-                    f"**{i+1}.** 🎶  **[{pl_name}]({playlist['url']})**  🎶\n"
+                    f"**[{i+1}]** - 🎶  **[{pl_name}]({playlist['url']})**  🎶\n"
                     f"*Button:* `{button_display}`\n"
                     f"*Shuffle:* `{playlist.get('shuffle', False)}`"
                 ),
@@ -1533,6 +1621,57 @@ class MusicCog(commands.Cog):
             f'Moved track `{track.uri}` from **{frrom}.** to **{to}.** in queue.'
         )
         await interaction.response.send_message(embed=success_embed(message), delete_after=7)
+    
+    @app_commands.command(name='queue', description='Shows the queue')
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 5.0)
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    async def queue(self, interaction: discord.Integration):
+        """Shows the queue."""
+        # Check if command should continue using check_and_join()
+        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=False)
+        if check:
+            await interaction.response.send_message(embed=error_embed(check), ephemeral=True)
+            return
+        
+        # Get player for this guild
+        player = self.lavalink.player_manager.get(interaction.guild.id)
+
+        # Get current track
+        current_track = player.current
+
+        # Get queue list
+        queue = player.queue
+
+        # Get queue size
+        queue_size = len(queue)
+
+        # Get queue time in ms
+        queue_time = 0
+        queue_time = sum(t.duration for t in queue if not t.is_stream)
+        queue_time += current_track.duration if not current_track.is_stream else 0
+
+        # Get first 10 or less tracks to show
+        if queue_size > 10:
+            show_queue = queue[:10]
+        else:
+            show_queue = queue
+
+        # Gat total number of pages
+        total_pages = queue_size // 10
+        total_pages += 1 if queue_size % 10 else 0
+        
+        # Create embed
+        embed = self.queue_embed(interaction.guild, 
+                                 current_track, 
+                                 show_queue, 
+                                 queue_size, 
+                                 queue_time,
+                                 1,
+                                 total_pages)
+
+        # Send embed
+        await interaction.response.send_message(embed=embed, view=QueueButtonsView(), ephemeral=True)
 
 async def setup(bot):
     # Add MusicCog to bot instance
