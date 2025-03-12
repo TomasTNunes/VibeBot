@@ -231,29 +231,87 @@ class MusicCog(commands.Cog):
         If the guild does not exist, return empty dictionary {}.
         """
         return self.music_data.get(str(guild_id), {})
+    
+    ######################################
+    ############# WEBHOOKS  ##############
+    ######################################
+
+    async def get_webhook(self, guild_id: int):
+        """Gets an existing webhook for the music text channel, otherwise returns None."""
+        # Check if we have a stored webhook for this channel
+        webhook = self.get_guild_music_data(guild_id).get('music_text_channel_webhook')
+        if webhook:
+            try:
+                return await self.bot.fetch_webhook(webhook.get('id'))
+            except discord.NotFound:
+                return None
+            except Exception:
+                return None
+
+    async def create_webhook(self, guild_id: int, music_text_channel: Optional[discord.TextChannel] = None):
+        """
+        Create webhook  for the music text channel, stores it is music data and returns it.
+
+        If music text channel doesnt exist, it returns None
+        """
+        # Check music text channel when not given
+        if not music_text_channel:
+            guild_music_data = self.get_guild_music_data(guild_id)
+            guild = self.bot.get_guild(guild_id)
+            music_text_channel = guild.get_channel(guild_music_data.get('music_text_channel_id')) if guild else None
+            if not music_text_channel:
+                return None
+
+        # Create webhook
+        webhook = await music_text_channel.create_webhook(name=self.bot.user.name, 
+                                                          avatar=await self.bot.user.display_avatar.read())
+
+        # Store webhook in `music_data.json`
+        self.add_music_data(
+            guild_id=guild_id,
+            keys=['url', 'id', 'token'],
+            values=[webhook.url, webhook.id, webhook.token],
+            root_keys='music_text_channel_webhook'
+        )
+
+        return webhook
+    
+    async def get_or_create_webhook(self, guild_id: int, music_text_channel: Optional[discord.TextChannel] = None):
+        """
+        Gets music text channel webhok if it exists, otherwise creates it.
+        
+        If music text channel doesnt exist, it returns None
+        """
+        # Check if webhook exists
+        webhook = await self.get_webhook(guild_id)
+        if webhook:
+            return webhook
+
+        # Create webhook
+        return await self.create_webhook(guild_id, music_text_channel=music_text_channel)
 
     ######################################
     ######## MUSIC TEXT CHANNEL ##########
     ######################################
     
-    async def create_music_message(self, music_text_channel: discord.TextChannel):
+    async def create_music_message(self, webhook: discord.Webhook):
         """Create a music message in the specified music text channel. Returns music message."""
         # Get default music message text and embed
         message_text, embed = self.get_default_music_message()
 
         # Get MusicPlayerView for this guild if it exists, otherwise create a new one
-        musicplayerview = self.get_musicplayerview(music_text_channel.guild.id)
+        musicplayerview = self.get_musicplayerview(webhook.guild_id)
         if not musicplayerview:
-            musicplayerview = MusicPlayerView(self.bot, self, music_text_channel.guild)
+            musicplayerview = MusicPlayerView(self.bot, self, webhook.guild)
 
         # Send the music message (this adds view to bots persistent views automatically)
-        music_message = await music_text_channel.send(message_text, embed=embed, view=musicplayerview)
+        music_message = await webhook.send(message_text, embed=embed, view=musicplayerview, wait=True)
 
         # Add guild music data to music data and save in `music_data.json`
         self.add_music_data(
-            guild_id=music_text_channel.guild.id,
+            guild_id=webhook.guild_id,
             keys=['guild_id', 'music_text_channel_id', 'music_message_id'],
-            values=[music_text_channel.guild.id, music_text_channel.id, music_message.id],
+            values=[webhook.guild_id, webhook.channel_id, music_message.id],
         )
 
         return music_message
@@ -276,15 +334,9 @@ class MusicCog(commands.Cog):
         # get guild music data
         guild_music_data = self.get_guild_music_data(guild.id)
 
-        # get music text channel from ID
-        music_text_channel = guild.get_channel(guild_music_data.get('music_text_channel_id'))
-        if not music_text_channel:
-            return
-
-        # get music message from ID
-        try:
-            music_message = await music_text_channel.fetch_message(guild_music_data.get('music_message_id'))
-        except Exception as e:
+        # Get webhook if it exists or try to create it, otherwise if it fails return
+        webhook = await self.get_or_create_webhook(guild.id)
+        if not webhook:
             return
 
         # get player for this guild
@@ -359,7 +411,7 @@ class MusicCog(commands.Cog):
                               )
             )
             embed.set_author(name='Now Playing')
-            embed.set_thumbnail(url=current_track.artwork_url if current_track.artwork_url else self.bot.user.avatar.url)
+            embed.set_thumbnail(url=current_track.artwork_url if current_track.artwork_url else self.bot.user.display_avatar.url)
             queue_time_str = (
                     f'{str(queue_time // 3600000).zfill(2)}:{(queue_time % 3600000) // 60000:02d}:{(queue_time % 60000) // 1000:02d}'
                     if queue_time >= 3600000 else
@@ -374,8 +426,11 @@ class MusicCog(commands.Cog):
         else:
             queue_list, embed = self.get_default_music_message()
         
-        # Edit music message
-        await music_message.edit(content=queue_list, embed=embed, allowed_mentions=discord.AllowedMentions(users=False))
+        # Edit music message, if it exists
+        try:
+            await webhook.edit_message(guild_music_data.get('music_message_id'), content=queue_list, embed=embed, allowed_mentions=discord.AllowedMentions(users=False))
+        except Exception:
+            return
 
     async def cleanup_music_channels(self):
         """
@@ -398,43 +453,45 @@ class MusicCog(commands.Cog):
         Set music message to default.
         Restore MusicPlayerView.
         """
-        # Get guild from guild ID
-        guild = self.bot.get_guild(guild_music_data.get('guild_id'))
+        # Get webhook
+        webhook = await self.get_or_create_webhook(guild_music_data.get('guild_id'))
 
-        # Get music text channel from ID
-        music_text_channel = guild.get_channel(guild_music_data.get('music_text_channel_id')) if guild else None
-
+        # If webhook is None, it means music text channel does not exist
         # If music text channel does not exist skip iteration
         # Don't remove from music data because music data contains other information that should not be deleted
         # in case music channel is created again (deafult volume, playlists, etc.)
         # This note is important when called in cleanup_music_channels()
-        if not music_text_channel:
+        if not webhook:
             return
 
         # get music message from ID
         music_message_id = guild_music_data.get('music_message_id')
-        try:
-            music_message = await music_text_channel.fetch_message(music_message_id) if music_text_channel else None
-        except Exception as e:
-            music_message = None
-        
+
         # delete all messages in music text channel that are not the music message
-        await music_text_channel.purge(check=lambda m: m.id != music_message_id, bulk=True)
+        await webhook.channel.purge(check=lambda m: m.id != music_message_id, bulk=True)
+
+        # Get music message
+        try:
+            music_message = await webhook.fetch_message(music_message_id)
+        except Exception:
+            music_message = None
 
         # If music message does not exist, create it. Otherwise, set it to default
         if not music_message:
-            await self.create_music_message(music_text_channel)
-        else:
-            # Get default music message
-            music_channel_text, embed = self.get_default_music_message()
+            await self.create_music_message(webhook)
+            await self.update_music_embed(webhook.guild)
+            return
 
-            # Get MusicPlayerView for this guild if it exists, otherwise create a new one
-            musicplayerview = self.get_musicplayerview(music_text_channel.guild.id)
-            if not musicplayerview:
-                musicplayerview = MusicPlayerView(self.bot, self, guild)
+        # Get MusicPlayerView for this guild if it exists, otherwise create a new one
+        musicplayerview = self.get_musicplayerview(webhook.guild_id)
+        if not musicplayerview:
+            musicplayerview = MusicPlayerView(self.bot, self, webhook.guild)
 
-            # Set music message to default and restore MusicPlayerView
-            await music_message.edit(content=music_channel_text, embed=embed, view=musicplayerview)
+        # Set  MusicPlayerView in music message
+        await webhook.edit_message(music_message_id, view=musicplayerview)
+
+        # Update Music embed
+        await self.update_music_embed(webhook.guild)
     
     ######################################
     ######### MUSIC PLAYER VIEW ##########
@@ -452,33 +509,30 @@ class MusicCog(commands.Cog):
         Update MusicPlayerView for the specified guild music message.
 
         Useful to update MusicPLayerView buttons outside of Player interactions.
-        In player interactions, use `interaction.message.edit(view=self)`.
+        In player interactions, use `interaction.response.edit_message(view=self)`.
         """
         # Get music data for this guild in case it exists, otherwise return
         guild_music_data = self.get_guild_music_data(guild_id)
         if not guild_music_data:
             return
 
-        # Get music text channel from ID if it exists, otherwise return
-        music_text_channel = self.bot.get_channel(guild_music_data.get('music_text_channel_id'))
-        if not music_text_channel:
+        # Get webhook if it exists or try to create it, otherwise if it fails return
+        webhook = await self.get_or_create_webhook(guild_id)
+        if not webhook:
             return
-
-        # get music message from ID if it exists, otherwise return
-        try:
-            music_message = await music_text_channel.fetch_message(guild_music_data.get('music_message_id'))
-        except Exception as e:
-            return
-
+        
         # Get MusicPlayerView and update it for this guild if it exists, otherwise create a new one
         musicplayerview = self.get_musicplayerview(guild_id)
         if not musicplayerview:
-            musicplayerview = MusicPlayerView(self.bot, self, music_text_channel.guild)
+            musicplayerview = MusicPlayerView(self.bot, self, webhook.guild)
         else:
             musicplayerview.update_buttons()
 
-        # Edit music message with updated view
-        await music_message.edit(view=musicplayerview)
+        # Edit music message with updated view, if it exists
+        try:
+            await webhook.edit_message(guild_music_data.get('music_message_id') ,view=musicplayerview)
+        except Exception:
+            return
 
                 
     ######################################
@@ -591,8 +645,11 @@ class MusicCog(commands.Cog):
         if not message.guild:
             return
         
-        # Ignore message from VibeBot
-        if message.author == self.bot.user:
+        # Get webhook
+        webhook = await self.get_webhook(message.guild.id)
+        
+        # Ignore message from VibeBot and music text channel webhook
+        if message.author == self.bot.user or message.author.id == webhook.id:
             return
         
         # Get music data for this guild in case it exists, otherwise None
@@ -936,6 +993,7 @@ class MusicCog(commands.Cog):
         attach_files=True,
         add_reactions=True,
         use_external_emojis=True,
+        manage_webhooks=True
     )  # Bot must have all these permissions
     async def setup(self, interaction: discord.Interaction):
         """Setup music text channel, if it doesn't exists."""
@@ -947,7 +1005,7 @@ class MusicCog(commands.Cog):
         music_text_channel = interaction.guild.get_channel(music_text_channel_id)
 
         # If music text channel exists, inform user
-        if music_text_channel is not None:
+        if music_text_channel:
             await interaction.response.send_message(embed=warning_embed(f'Music text channel already exists: {music_text_channel.mention}'), ephemeral=True)
             return
 
@@ -963,13 +1021,17 @@ class MusicCog(commands.Cog):
                 add_reactions=True,
                 use_external_emojis=True,
                 mention_everyone=True,
+                manage_webhooks=True
             )
         }
         topic_music_text_channel = ""
         music_text_channel = await interaction.guild.create_text_channel(name="vibebot-music", overwrites=overwrites, topic=topic_music_text_channel)
 
+        # Create music text channel webhook
+        webhook = await self.get_or_create_webhook(interaction.guild.id, music_text_channel=music_text_channel)
+
         # Create music message in music text channel
-        await self.create_music_message(music_text_channel)
+        await self.create_music_message(webhook)
 
         # Infom user music text channel was created
         await interaction.response.send_message(embed=success_embed(f'Music text channel created: {music_text_channel.mention}'))
