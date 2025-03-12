@@ -1012,6 +1012,7 @@ class MusicCog(commands.Cog):
         # Create music text channel with required permissions for bot role
         overwrites = {
             interaction.guild.me: discord.PermissionOverwrite(
+                manage_channels=True,
                 read_messages=True,
                 read_message_history=True, 
                 send_messages=True,
