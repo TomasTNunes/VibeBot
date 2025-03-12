@@ -1,6 +1,6 @@
 import os
 import discord
-from discord import ActivityType, app_commands
+from discord import ActivityType, app_commands, Embed
 from discord.ext import commands
 from dotenv import load_dotenv
 import time
@@ -144,7 +144,17 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
 @app_commands.checks.bot_has_permissions(embed_links=True)
 async def invite(interaction: discord.Interaction):
     """Get the bot invite link in a button."""
-    await interaction.response.send_message("Click the button below to invite VibeBot to your server!", view=InviteButtonView())
+    embed = discord.Embed(
+        title="✨ Invite VibeBot to Your Server!",
+        description="Click the button below to invite **VibeBot** and enjoy music on your server!",
+        color=discord.Colour.from_rgb(137, 76, 193)
+    )
+    embed.set_thumbnail(url=bot.user.display_avatar.url)
+    embed.set_footer(text="Thank you for choosing VibeBot! 🎵")
+
+    await interaction.response.send_message(embed=embed, view=InviteButtonView())
+
+    #await interaction.response.send_message("Click the button below to invite VibeBot to your server!", view=InviteButtonView())
 
 @bot.tree.command(name="ping", description="Shows the bot's ping.")
 @app_commands.checks.cooldown(1, 5.0)
@@ -169,21 +179,51 @@ async def ping(interaction: discord.Interaction):
     await bot.http.get_user(bot.user.id) # (simulating an API call)
     api_latency = round((time.monotonic() - start_time) * 1000)
 
-    # Get uptime in days, hours, minutes and seconds
+    # Create embed
+    embed = Embed(
+        color=discord.Colour.from_rgb(137, 76, 193),
+        title="🏓 Pong!",
+        description="Here are the VibeBot's latency stats."
+    )
+
+    # Format uptime
     uptime = time.monotonic() - bot.start_time
     days, remainder = divmod(uptime, 86400)
     hours, remainder = divmod(remainder, 3600)
     minutes, seconds = divmod(remainder, 60)
 
-    # Build response
-    response = (
-        f"**Bot Uptime:** `{int(days)}d {int(hours)}h {int(minutes)}m {int(seconds)}s`\n"
-        f"**Bot latency:** `{bot_latency}`ms\n"
-        f"**Discord API latency:** `{api_latency}`ms (Shard `{shard_id}`)"
+    # Bot Latency (WebSocket)
+    bot_latency = round(bot.latency * 1000)
+
+    # Get bot Shard ID
+    shard_id = interaction.guild.shard_id if interaction.guild else 0
+
+    # Measure Discord API latency (REST API)
+    start_time = time.monotonic()
+    await bot.http.get_user(bot.user.id)  # Simulating an API call
+    api_latency = round((time.monotonic() - start_time) * 1000)
+
+    # Add fields with latency and uptime info
+    embed.add_field(
+        name="⏳ **Uptime**",
+        value=f"`{int(days)}d {int(hours)}h {int(minutes)}m {int(seconds)}s`",
+        inline=False
     )
 
-    # Send response
-    await interaction.response.send_message(embed=info_embed(response))
+    embed.add_field(
+        name="📡 **Bot Latency**",
+        value=f"`{bot_latency}ms`",
+        inline=True
+    )
+
+    embed.add_field(
+        name="🔗 **API Latency**",
+        value=f"`{api_latency}ms` (Shard `{shard_id}`)",
+        inline=True
+    )
+
+    # Send embed
+    await interaction.response.send_message(embed=embed)
 
 if __name__ == '__main__':
     """Run bot instance"""

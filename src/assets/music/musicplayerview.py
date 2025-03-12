@@ -336,9 +336,6 @@ class MusicPlayerView(View):
         NOTE: When bot is connected without music playing the Resume button is shown. When in this state, clicking Resume
         will send warning that not music is playing.
         """
-        # Defer the interaction
-        await interaction.response.defer()
-
         # Get guild player
         player = self.cog.lavalink.player_manager.get(self.guild.id)
         
@@ -350,12 +347,7 @@ class MusicPlayerView(View):
 
         # Update MusicPlayerView in music message
         self.update_buttons()
-        await interaction.message.edit(view=self)
-
-        # Defer the interaction 
-        # (This could be above `if player.paused:` to avoid interaction failing (timeout), however it looks like interaction ends way before the pause or resume takes action)
-        #await interaction.response.defer()
-
+        await interaction.response.edit_message(view=self)
     
     async def next_track_callback(self, interaction: discord.Interaction):
         """
@@ -432,7 +424,7 @@ class MusicPlayerView(View):
         
         # Update MusicPlayerView in music message
         self.update_buttons()
-        await interaction.message.edit(view=self)
+        await interaction.followup.edit_message(interaction.message.id, view=self)
     
     async def shuffle_callback(self, interaction: discord.Interaction):
         """
@@ -462,9 +454,6 @@ class MusicPlayerView(View):
         It needs to update MusicPlayerView.
         It does not needs to update music message embed.
         """
-        # Defer the interaction
-        await interaction.response.defer()
-
         # Get guild player
         player = self.cog.lavalink.player_manager.get(self.guild.id)
 
@@ -476,7 +465,7 @@ class MusicPlayerView(View):
 
         # Update MusicPlayerView in music message
         self.update_buttons()
-        await interaction.message.edit(view=self)
+        await interaction.response.edit_message(view=self)
     
     async def stop_callback(self, interaction: discord.Interaction):
         """

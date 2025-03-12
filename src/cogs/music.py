@@ -1,6 +1,6 @@
 import os
 import discord
-from discord import app_commands, Embed
+from discord import app_commands, Embed, PartialEmoji
 from discord.ext import commands
 import lavalink
 from lavalink.server import LoadType
@@ -12,6 +12,7 @@ from typing import Union, List, Any, Optional
 from assets.logger.logger import music_logger as logger, music_data_logger, debug_logger
 from assets.music.lavalinkvoiceclient import LavalinkVoiceClient
 from assets.music.musicplayerview import MusicPlayerView
+from assets.music.queuebuttonsview import QueueButtonsView
 from assets.utils.reply_embed import error_embed, success_embed, warning_embed, info_embed
 
 url_rx = re.compile(r'https?://(?:www\.)?.+')
@@ -230,29 +231,87 @@ class MusicCog(commands.Cog):
         If the guild does not exist, return empty dictionary {}.
         """
         return self.music_data.get(str(guild_id), {})
+    
+    ######################################
+    ############# WEBHOOKS  ##############
+    ######################################
+
+    async def get_webhook(self, guild_id: int):
+        """Gets an existing webhook for the music text channel, otherwise returns None."""
+        # Check if we have a stored webhook for this channel
+        webhook = self.get_guild_music_data(guild_id).get('music_text_channel_webhook')
+        if webhook:
+            try:
+                return await self.bot.fetch_webhook(webhook.get('id'))
+            except discord.NotFound:
+                return None
+            except Exception:
+                return None
+
+    async def create_webhook(self, guild_id: int, music_text_channel: Optional[discord.TextChannel] = None):
+        """
+        Create webhook  for the music text channel, stores it is music data and returns it.
+
+        If music text channel doesnt exist, it returns None
+        """
+        # Check music text channel when not given
+        if not music_text_channel:
+            guild_music_data = self.get_guild_music_data(guild_id)
+            guild = self.bot.get_guild(guild_id)
+            music_text_channel = guild.get_channel(guild_music_data.get('music_text_channel_id')) if guild else None
+            if not music_text_channel:
+                return None
+
+        # Create webhook
+        webhook = await music_text_channel.create_webhook(name=self.bot.user.name, 
+                                                          avatar=await self.bot.user.display_avatar.read())
+
+        # Store webhook in `music_data.json`
+        self.add_music_data(
+            guild_id=guild_id,
+            keys=['url', 'id', 'token'],
+            values=[webhook.url, webhook.id, webhook.token],
+            root_keys='music_text_channel_webhook'
+        )
+
+        return webhook
+    
+    async def get_or_create_webhook(self, guild_id: int, music_text_channel: Optional[discord.TextChannel] = None):
+        """
+        Gets music text channel webhok if it exists, otherwise creates it.
+        
+        If music text channel doesnt exist, it returns None
+        """
+        # Check if webhook exists
+        webhook = await self.get_webhook(guild_id)
+        if webhook:
+            return webhook
+
+        # Create webhook
+        return await self.create_webhook(guild_id, music_text_channel=music_text_channel)
 
     ######################################
     ######## MUSIC TEXT CHANNEL ##########
     ######################################
     
-    async def create_music_message(self, music_text_channel: discord.TextChannel):
+    async def create_music_message(self, webhook: discord.Webhook):
         """Create a music message in the specified music text channel. Returns music message."""
         # Get default music message text and embed
         message_text, embed = self.get_default_music_message()
 
         # Get MusicPlayerView for this guild if it exists, otherwise create a new one
-        musicplayerview = self.get_musicplayerview(music_text_channel.guild.id)
+        musicplayerview = self.get_musicplayerview(webhook.guild_id)
         if not musicplayerview:
-            musicplayerview = MusicPlayerView(self.bot, self, music_text_channel.guild)
+            musicplayerview = MusicPlayerView(self.bot, self, webhook.guild)
 
         # Send the music message (this adds view to bots persistent views automatically)
-        music_message = await music_text_channel.send(message_text, embed=embed, view=musicplayerview)
+        music_message = await webhook.send(message_text, embed=embed, view=musicplayerview, wait=True)
 
         # Add guild music data to music data and save in `music_data.json`
         self.add_music_data(
-            guild_id=music_text_channel.guild.id,
+            guild_id=webhook.guild_id,
             keys=['guild_id', 'music_text_channel_id', 'music_message_id'],
-            values=[music_text_channel.guild.id, music_text_channel.id, music_message.id],
+            values=[webhook.guild_id, webhook.channel_id, music_message.id],
         )
 
         return music_message
@@ -275,17 +334,9 @@ class MusicCog(commands.Cog):
         # get guild music data
         guild_music_data = self.get_guild_music_data(guild.id)
 
-        # get music text channel from ID
-        music_text_channel = guild.get_channel(guild_music_data.get('music_text_channel_id')) if guild_music_data else None
-        if not music_text_channel:
-            return
-
-        # get music message from ID
-        try:
-            music_message = await music_text_channel.fetch_message(guild_music_data.get('music_message_id')) if music_text_channel else None
-            if not music_message:
-                return
-        except Exception as e:
+        # Get webhook if it exists or try to create it, otherwise if it fails return
+        webhook = await self.get_or_create_webhook(guild.id)
+        if not webhook:
             return
 
         # get player for this guild
@@ -360,7 +411,7 @@ class MusicCog(commands.Cog):
                               )
             )
             embed.set_author(name='Now Playing')
-            embed.set_thumbnail(url=current_track.artwork_url if current_track.artwork_url else self.bot.user.avatar.url)
+            embed.set_thumbnail(url=current_track.artwork_url if current_track.artwork_url else self.bot.user.display_avatar.url)
             queue_time_str = (
                     f'{str(queue_time // 3600000).zfill(2)}:{(queue_time % 3600000) // 60000:02d}:{(queue_time % 60000) // 1000:02d}'
                     if queue_time >= 3600000 else
@@ -375,8 +426,11 @@ class MusicCog(commands.Cog):
         else:
             queue_list, embed = self.get_default_music_message()
         
-        # Edit music message
-        await music_message.edit(content=queue_list, embed=embed, allowed_mentions=discord.AllowedMentions(users=False))
+        # Edit music message, if it exists
+        try:
+            await webhook.edit_message(guild_music_data.get('music_message_id'), content=queue_list, embed=embed, allowed_mentions=discord.AllowedMentions(users=False))
+        except Exception:
+            return
 
     async def cleanup_music_channels(self):
         """
@@ -399,43 +453,45 @@ class MusicCog(commands.Cog):
         Set music message to default.
         Restore MusicPlayerView.
         """
-        # Get guild from guild ID
-        guild = self.bot.get_guild(guild_music_data.get('guild_id'))
+        # Get webhook
+        webhook = await self.get_or_create_webhook(guild_music_data.get('guild_id'))
 
-        # Get music text channel from ID
-        music_text_channel = guild.get_channel(guild_music_data.get('music_text_channel_id')) if guild else None
-
+        # If webhook is None, it means music text channel does not exist
         # If music text channel does not exist skip iteration
         # Don't remove from music data because music data contains other information that should not be deleted
         # in case music channel is created again (deafult volume, playlists, etc.)
         # This note is important when called in cleanup_music_channels()
-        if not music_text_channel:
+        if not webhook:
             return
 
         # get music message from ID
         music_message_id = guild_music_data.get('music_message_id')
-        try:
-            music_message = await music_text_channel.fetch_message(music_message_id) if music_text_channel else None
-        except Exception as e:
-            music_message = None
-        
+
         # delete all messages in music text channel that are not the music message
-        await music_text_channel.purge(check=lambda m: m.id != music_message_id, bulk=True)
+        await webhook.channel.purge(check=lambda m: m.id != music_message_id, bulk=True)
+
+        # Get music message
+        try:
+            music_message = await webhook.fetch_message(music_message_id)
+        except Exception:
+            music_message = None
 
         # If music message does not exist, create it. Otherwise, set it to default
         if not music_message:
-            await self.create_music_message(music_text_channel)
-        else:
-            # Get default music message
-            music_channel_text, embed = self.get_default_music_message()
+            await self.create_music_message(webhook)
+            await self.update_music_embed(webhook.guild)
+            return
 
-            # Get MusicPlayerView for this guild if it exists, otherwise create a new one
-            musicplayerview = self.get_musicplayerview(music_text_channel.guild.id)
-            if not musicplayerview:
-                musicplayerview = MusicPlayerView(self.bot, self, guild)
+        # Get MusicPlayerView for this guild if it exists, otherwise create a new one
+        musicplayerview = self.get_musicplayerview(webhook.guild_id)
+        if not musicplayerview:
+            musicplayerview = MusicPlayerView(self.bot, self, webhook.guild)
 
-            # Set music message to default and restore MusicPlayerView
-            await music_message.edit(content=music_channel_text, embed=embed, view=musicplayerview)
+        # Set  MusicPlayerView in music message
+        await webhook.edit_message(music_message_id, view=musicplayerview)
+
+        # Update Music embed
+        await self.update_music_embed(webhook.guild)
     
     ######################################
     ######### MUSIC PLAYER VIEW ##########
@@ -453,35 +509,30 @@ class MusicCog(commands.Cog):
         Update MusicPlayerView for the specified guild music message.
 
         Useful to update MusicPLayerView buttons outside of Player interactions.
-        In player interactions, use `interaction.message.edit(view=self)`.
+        In player interactions, use `interaction.response.edit_message(view=self)`.
         """
         # Get music data for this guild in case it exists, otherwise return
         guild_music_data = self.get_guild_music_data(guild_id)
         if not guild_music_data:
             return
 
-        # Get music text channel from ID if it exists, otherwise return
-        music_text_channel = self.bot.get_channel(guild_music_data.get('music_text_channel_id'))
-        if not music_text_channel:
+        # Get webhook if it exists or try to create it, otherwise if it fails return
+        webhook = await self.get_or_create_webhook(guild_id)
+        if not webhook:
             return
-
-        # get music message from ID if it exists, otherwise return
-        try:
-            music_message = await music_text_channel.fetch_message(guild_music_data.get('music_message_id'))
-            if not music_message:
-                return
-        except Exception as e:
-            return
-
+        
         # Get MusicPlayerView and update it for this guild if it exists, otherwise create a new one
         musicplayerview = self.get_musicplayerview(guild_id)
         if not musicplayerview:
-            musicplayerview = MusicPlayerView(self.bot, self, music_text_channel.guild)
+            musicplayerview = MusicPlayerView(self.bot, self, webhook.guild)
         else:
             musicplayerview.update_buttons()
 
-        # Edit music message with updated view
-        await music_message.edit(view=musicplayerview)
+        # Edit music message with updated view, if it exists
+        try:
+            await webhook.edit_message(guild_music_data.get('music_message_id') ,view=musicplayerview)
+        except Exception:
+            return
 
                 
     ######################################
@@ -551,7 +602,7 @@ class MusicCog(commands.Cog):
             else:
                 # inform user that last track must be from spotify for now
                 guild_music_data = self.get_guild_music_data(guild_id)
-                music_text_channel = self.bot.get_channel(guild_music_data.get('music_text_channel_id')) if guild_music_data else None
+                music_text_channel = self.bot.get_channel(guild_music_data.get('music_text_channel_id'))
                 if music_text_channel:
                     await music_text_channel.send(embed=warning_embed('`AutoPlay` only works if last music track is from spotify.'), delete_after=15)  
             
@@ -594,35 +645,50 @@ class MusicCog(commands.Cog):
         if not message.guild:
             return
         
+        # Get webhook
+        webhook = await self.get_webhook(message.guild.id)
+        
+        # Ignore message from VibeBot and music text channel webhook
+        if message.author == self.bot.user or message.author.id == webhook.id:
+            return
+        
         # Get music data for this guild in case it exists, otherwise None
         guild_music_data = self.get_guild_music_data(message.guild.id)
-        music_text_channel_id = guild_music_data.get('music_text_channel_id') if guild_music_data else None
+        music_text_channel_id = guild_music_data.get('music_text_channel_id')
 
         # Check is message is from a music text channel, and not from VibeBot
-        if music_text_channel_id == message.channel.id and message.author != self.bot.user:
-            # If message is not from a bot send the message to play function
-            if not message.author.bot:
-                # Check if bot should join and create player
-                check = await self.check_and_join(message.author, message.guild, should_connect=True, should_bePlaying=False)
-                if check:
-                    await message.channel.send(embed=error_embed(check), delete_after=15)
+        if music_text_channel_id == message.channel.id:
 
-                else:
-                    # Add query to queue and send message if not successful
-                    add_to_queue_check = await self.add_to_queue(message.content, message.author, message.guild)
-                    if add_to_queue_check:
-                        await message.channel.send(embed=error_embed(add_to_queue_check), delete_after=15)
+            # Delete message asynchronously without blovking rest of function (running in parallel task)
+            async def delete_message():
+                try:
+                    await message.delete()
+                except discord.Forbidden:
+                    await message.channel.send(
+                        embed=error_embed("I need `manage_messages`, `read_message_history`, and `view_channel` permissions in this text channel."),
+                        delete_after=15
+                    )
+                except discord.NotFound:
+                    pass
+                except Exception as e:
+                    pass
+            asyncio.create_task(delete_message())
+
+            # Check if message is not from other bot    
+            if message.author.bot:
+                return
             
-            # Delete all the messages in the music text channel that are not from VibeBot
-            try:
-                await message.delete()
-            except discord.Forbidden:
-                await message.channel.send(embed=error_embed("I need `manage_messages`, `read_message_history` and `view_channel` permissions in this text channel."),
-                                        delete_after=15)
-            except discord.NotFound:
-                pass
-            except Exception as e:
-                pass      
+            # Check if bot should join and create player
+            check = await self.check_and_join(message.author, message.guild, should_connect=True, should_bePlaying=False)
+            if check:
+                await message.channel.send(embed=error_embed(check), delete_after=15)
+                return
+
+            # Add query to queue and send message if not successful
+            add_to_queue_check = await self.add_to_queue(message.content, message.author, message.guild)
+            if add_to_queue_check:
+                await message.channel.send(embed=error_embed(add_to_queue_check), delete_after=15)
+                return
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild: discord.Guild):
@@ -805,7 +871,7 @@ class MusicCog(commands.Cog):
         """Checks if the emoji is valid (Unicode or custom guild emoji)."""
         try:
             # Attempt to create a PartialEmoji from the string
-            emoji = discord.PartialEmoji.from_str(emoji)
+            emoji = PartialEmoji.from_str(emoji)
             
             # If it's a custom emoji, check if it exists in the guild
             if emoji.is_custom_emoji():
@@ -819,6 +885,85 @@ class MusicCog(commands.Cog):
         except Exception:
             # If from_str fails, it's not a valid emoji
             return False
+    
+    @staticmethod
+    def queue_embed(guild: discord.Guild, 
+                    current_track: lavalink.AudioTrack, 
+                    queue: list[lavalink.AudioTrack],
+                    queue_size: int, 
+                    queue_time: int,
+                    current_page: int,
+                    total_pages: int):
+        """Creates an embed for the queue."""
+        # Initialize description of embed
+        description = ""
+
+        # Format current track
+        current_track_str = None
+        if current_track:
+            current_track_duration_str = (
+                f'{str(current_track.duration // 3600000).zfill(2)}:{(current_track.duration % 3600000) // 60000:02d}:{(current_track.duration % 60000) // 1000:02d}'
+                if current_track.duration >= 3600000 else
+                f'{str(current_track.duration // 60000).zfill(2)}:{current_track.duration % 60000 // 1000:02d}'
+            )
+            current_track_str=(
+                f'[{current_track.author} - {current_track.title}]({current_track.uri})'
+                f' - `{current_track_duration_str}`'
+                if current_track.is_seekable else
+                f'{current_track.uri}'
+                f' - `{current_track_duration_str}`'
+            )
+        description += '**♪ Now playing**\n'
+        description += f'> {current_track_str}\n\n' if current_track_str else '> `No music`\n\n'
+
+        # Format queue
+        description += f'**🎶 Tracks in queue({queue_size})**\n'
+        if len(queue) == 0:
+            description += '> `No track in queue`'
+        for i,track in enumerate(queue):
+            if track.is_stream:
+                track_duration_str = 'LIVE'
+            else:
+                track_duration_str = (
+                    f'{str(track.duration // 3600000).zfill(2)}:{(track.duration % 3600000) // 60000:02d}:{(track.duration % 60000) // 1000:02d}'
+                    if track.duration >= 3600000 else
+                    f'{str(track.duration // 60000).zfill(2)}:{track.duration % 60000 // 1000:02d}'
+                )
+            description += (
+                f'**[{(current_page-1)*10+i+1}]** `-` '
+                f'[{track.author} - {track.title}]({track.uri})'
+                f' - `{track_duration_str}`\n' 
+                if track.is_seekable else
+                f'**[{(current_page-1)*10+i+1}]** `-` '
+                f'{track.uri}'
+                f' - `{track_duration_str}`\n'
+            )
+
+        # Create embed
+        embed = Embed(
+            color=discord.Colour.from_rgb(137, 76, 193),
+            title=f"{guild.name} Queue",
+            description=description
+        )
+
+        # Format queue time
+        queue_time_str = (
+            f'{str(queue_time // 3600000).zfill(2)}:{(queue_time % 3600000) // 60000:02d}:{(queue_time % 60000) // 1000:02d}'
+            if queue_time >= 3600000 else
+            f'{str(queue_time // 60000).zfill(2)}:{queue_time % 60000 // 1000:02d}'
+        )
+        embed.add_field(
+            name='**⏱ Queue time**',
+            value=f'> `{queue_time_str}`',
+            inline=False
+        )
+
+        # Set footer with pages
+        embed.set_footer(
+            text=f'Page: {current_page}/{total_pages}'
+        )
+
+        return embed
 
     ######################################
     ############# COMMANDS ###############
@@ -848,18 +993,19 @@ class MusicCog(commands.Cog):
         attach_files=True,
         add_reactions=True,
         use_external_emojis=True,
+        manage_webhooks=True
     )  # Bot must have all these permissions
     async def setup(self, interaction: discord.Interaction):
         """Setup music text channel, if it doesn't exists."""
         # Get guild music data and music text channel id
         guild_music_data = self.get_guild_music_data(interaction.guild.id)
-        music_text_channel_id = guild_music_data.get('music_text_channel_id') if guild_music_data else None
+        music_text_channel_id = guild_music_data.get('music_text_channel_id')
 
         # Get music text channel in case it exists in current guild, otherwise None
         music_text_channel = interaction.guild.get_channel(music_text_channel_id)
 
         # If music text channel exists, inform user
-        if music_text_channel is not None:
+        if music_text_channel:
             await interaction.response.send_message(embed=warning_embed(f'Music text channel already exists: {music_text_channel.mention}'), ephemeral=True)
             return
 
@@ -875,13 +1021,17 @@ class MusicCog(commands.Cog):
                 add_reactions=True,
                 use_external_emojis=True,
                 mention_everyone=True,
+                manage_webhooks=True
             )
         }
         topic_music_text_channel = ""
         music_text_channel = await interaction.guild.create_text_channel(name="vibebot-music", overwrites=overwrites, topic=topic_music_text_channel)
 
+        # Create music text channel webhook
+        webhook = await self.get_or_create_webhook(interaction.guild.id, music_text_channel=music_text_channel)
+
         # Create music message in music text channel
-        await self.create_music_message(music_text_channel)
+        await self.create_music_message(webhook)
 
         # Infom user music text channel was created
         await interaction.response.send_message(embed=success_embed(f'Music text channel created: {music_text_channel.mention}'))
@@ -902,7 +1052,7 @@ class MusicCog(commands.Cog):
         guild_music_data = self.get_guild_music_data(interaction.guild.id)
 
         # Get music text channel in case it exists in current guild, otherwise None
-        music_text_channel = interaction.guild.get_channel(guild_music_data.get('music_text_channel_id')) if guild_music_data else None
+        music_text_channel = interaction.guild.get_channel(guild_music_data.get('music_text_channel_id'))
 
         # If music text channel doesn't exist, inform user to /setup
         if not music_text_channel:
@@ -1028,6 +1178,63 @@ class MusicCog(commands.Cog):
         else:
             await interaction.response.send_message(embed=info_embed(f'Auto-disconnect `disabled`.'))
     
+    @app_commands.command(name='settings', description='Shows guild\'s music player settings')
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 10.0)
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    async def settings(self, interaction: discord.Integration):
+        """Shows guild's music player settings."""
+        # Get guild music data
+        guild_music_data = self.get_guild_music_data(interaction.guild.id)
+
+        # Get music text channel
+        music_text_channel = interaction.guild.get_channel(guild_music_data.get('music_text_channel_id'))
+        
+        # Get music message
+        try:
+            music_message = await music_text_channel.fetch_message(guild_music_data.get('music_message_id')) if music_text_channel else None
+        except Exception as e:
+            music_message = None
+        
+        # Create embed
+        embed = Embed(
+            color=discord.Colour.from_rgb(137, 76, 193),
+            title=f'🎶 {interaction.guild.name} - Music Player Settings'
+        )
+
+        # Add fields with channel/message and settings info
+        embed.add_field(
+            name="📌 **Channels & Messages**",
+            value=(
+                f'🔖 **Music Text Channel:** {music_text_channel.mention if music_text_channel else "*None*"}\n'
+                f'💬 **Music Message:** {music_message.jump_url if music_message else "*None*"}\n'
+            ),
+            inline=False
+        )
+
+        embed.add_field(
+            name="⚙️ **Playback Settings**",
+            value=(
+                f'🔊 **Default Volume:** `{guild_music_data.get("default_volume", 50)}%`\n'
+                f'🎵 **Default Autoplay:** `{guild_music_data.get("default_autoplay", "False")}`\n'
+                f'🔁 **Default Loop Queue:** `{guild_music_data.get("default_loop", "False")}`\n'
+            ),
+            inline=False
+        )
+
+        embed.add_field(
+            name="🛠 **Bot Behavior**",
+            value=(
+                f'🔌 **Auto Disconnect:** `{guild_music_data.get("auto_disconnect", "True")}`\n'
+                f'⏳ **Idle Timer:** `{guild_music_data.get("idle_timer", 300)}s`\n'
+            ),
+            inline=False
+        )
+
+        # Send embed
+        await interaction.response.send_message(embed=embed)
+
+    
     ######################################
     ######### PLAYLISTS / COMMANDS #######
     ######################################
@@ -1131,41 +1338,56 @@ class MusicCog(commands.Cog):
     @app_commands.guild_only()
     @app_commands.checks.cooldown(1, 10.0)
     @app_commands.checks.bot_has_permissions(embed_links=True)
-    async def show_playlists(self, interaction: discord.Integration):
+    async def show_playlists(self, interaction: discord.Interaction):
         """Show added playlists."""
         # Get playlists dictionary
         playlists = self.get_guild_music_data(interaction.guild.id).get('playlists')
 
         # Check if there are playlists
         if not playlists or len(playlists) == 0:
-            await interaction.response.send_message(embed=info_embed('No playlists have been added yet.\nUse `/pl-add` to add a playlist.'))
+            await interaction.response.send_message(embed=info_embed('🎵 No playlists have been added yet.\nUse `/pl-add` to add a playlist.'))
             return
 
-        # Embed with playlists info
-        embed = Embed(color = discord.Colour.from_rgb(137, 76, 193), title='Playlists:')
+        # Create embed
+        embed = discord.Embed(
+            color=discord.Colour.from_rgb(137, 76, 193),
+            title="📂 Your Playlists",
+            description=""
+        )
+
+        # Loop through playlists
         for i, pl_name in enumerate(playlists):
-            # Get playlist emoji if exists
-            if playlists[pl_name].get('emoji'):
-                if playlists[pl_name].get('emoji').get('unicode'):
-                    playlist_emoji = playlists[pl_name].get('emoji').get('name')
+            playlist = playlists[pl_name]
+            
+            # Get emoji
+            emoji = ""
+            if playlist.get('emoji'):
+                if playlist['emoji'].get('unicode'):
+                    emoji = playlist['emoji']['name']
                 else:
-                    playlist_emoji = discord.PartialEmoji(
-                        name=playlists[pl_name].get('emoji').get('name'),
-                        id = playlists[pl_name].get('emoji').get('id')
-                    )
-            else:
-                playlist_emoji = ''
-            # Add playlists to embed field
+                    emoji = f"<:{playlist['emoji']['name']}:{playlist['emoji']['id']}>"
+
+            # Get button label
+            button_label = playlist.get('button_name', '')
+
+            # Combine emoji and button label (ensure no extra spaces)
+            button_display = f"{emoji} {button_label}".strip()
+
+            # Format playlist details
             embed.add_field(
-                name=f'',
+                name='',
                 value=(
-                    f'**{i+1}.** **[{pl_name}]({playlists[pl_name].get('url')})**'
-                    f'\nButton: `{playlist_emoji} {playlists[pl_name].get('button_name','')}`'
-                    f'\nShuffle: `{playlists[pl_name].get("shuffle", False)}`'
+                    f"**[{i+1}]** - 🎶  **[{pl_name}]({playlist['url']})**  🎶\n"
+                    f"*Button:* `{button_display}`\n"
+                    f"*Shuffle:* `{playlist.get('shuffle', False)}`"
                 ),
                 inline=False
             )
-        embed.set_footer(text=f'/pl-add to add new playlists.\n/pl-remove to remove playlists.')
+
+        # Footer
+        embed.set_footer(text="➕ Use /pl-add to add a playlist\n➖ Use /pl-remove to a playlist")
+
+        # Send embed
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name='pl-remove', description='Remove playlist')
@@ -1461,6 +1683,57 @@ class MusicCog(commands.Cog):
             f'Moved track `{track.uri}` from **{frrom}.** to **{to}.** in queue.'
         )
         await interaction.response.send_message(embed=success_embed(message), delete_after=7)
+    
+    @app_commands.command(name='queue', description='Shows the queue')
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 5.0)
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    async def queue(self, interaction: discord.Integration):
+        """Shows the queue."""
+        # Check if command should continue using check_and_join()
+        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=False)
+        if check:
+            await interaction.response.send_message(embed=error_embed(check), ephemeral=True)
+            return
+        
+        # Get player for this guild
+        player = self.lavalink.player_manager.get(interaction.guild.id)
+
+        # Get current track
+        current_track = player.current
+
+        # Get queue list
+        queue = player.queue
+
+        # Get queue size
+        queue_size = len(queue)
+
+        # Get queue time in ms
+        queue_time = 0
+        queue_time = sum(t.duration for t in queue if not t.is_stream)
+        queue_time += current_track.duration if current_track and not current_track.is_stream else 0
+
+        # Get first 10 or less tracks to show
+        if queue_size > 10:
+            show_queue = queue[:10]
+        else:
+            show_queue = queue
+
+        # Gat total number of pages
+        total_pages = queue_size // 10
+        total_pages += 1 if queue_size % 10 or queue_size == 0 else 0
+        
+        # Create embed
+        embed = self.queue_embed(interaction.guild, 
+                                 current_track, 
+                                 show_queue, 
+                                 queue_size, 
+                                 queue_time,
+                                 1,
+                                 total_pages)
+
+        # Send embed
+        await interaction.response.send_message(embed=embed, view=QueueButtonsView(self, interaction.guild, 1, total_pages), ephemeral=True)
 
 async def setup(bot):
     # Add MusicCog to bot instance
