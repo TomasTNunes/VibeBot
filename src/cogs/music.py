@@ -1045,7 +1045,8 @@ class MusicCog(commands.Cog):
         read_message_history=True,
         manage_messages=True,
         send_messages=True,
-        embed_links=True
+        embed_links=True,
+        manage_webhooks=True
     ) 
     async def fix_setup(self, interaction: discord.Interaction):
         """Fix music music text channel. Recreate music text message. Deletes all other messages in music text channel."""
