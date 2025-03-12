@@ -1,6 +1,36 @@
 # CHANGELOG
 
 
+## v1.4.0 (2025-03-12)
+
+### Code Style
+
+- Improve /invite commadn style
+  ([`67b400a`](https://github.com/TomasTNunes/VibeBot/commit/67b400a41128da83cb625ead89561d7b835d51f8))
+
+- Improve /ping command style
+  ([`0b77cf9`](https://github.com/TomasTNunes/VibeBot/commit/0b77cf91085106d472434a41fd9873aac02d8fd9))
+
+- Improve /pl-show command style
+  ([`7df9bbf`](https://github.com/TomasTNunes/VibeBot/commit/7df9bbfaab8e95e93fc89d1a0a8ada64405174ef))
+
+### Features
+
+- Add /queue command
+  ([`492baa9`](https://github.com/TomasTNunes/VibeBot/commit/492baa9c2c7cb8d40d87473e7cc679478fe1d1ec))
+
+- Add settings / command
+  ([`c70f498`](https://github.com/TomasTNunes/VibeBot/commit/c70f4985c48567da7e1b3bbd6ef6b827d603b286))
+
+### Performance Improvements
+
+- Huge performance upgrade by using webhooks
+  ([`08116e8`](https://github.com/TomasTNunes/VibeBot/commit/08116e8aee82f23685b0988834b3ffb0e6cfed26))
+
+- Run delete message in parallel with add to queue for increased performance
+  ([`c6adba7`](https://github.com/TomasTNunes/VibeBot/commit/c6adba7fd7c1960f574857665428aad35205b697))
+
+
 ## v1.3.0 (2025-03-10)
 
 ### Bug Fixes
