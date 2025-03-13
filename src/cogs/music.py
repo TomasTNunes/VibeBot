@@ -1025,7 +1025,10 @@ class MusicCog(commands.Cog):
                 manage_webhooks=True
             )
         }
-        topic_music_text_channel = ""
+        topic_music_text_channel = "Take full control of VibeBot’s music experience: **play**, **pause**, **resume**, or **stop** \
+                                    tracks; **skip to next** or jump back with **previous track** ; **loop** the entire queue or track; \
+                                    **shuffle** playlists for variety; **adjust volume** on the fly; **add playlists**; **toggle  \
+                                    autoplay mode** ; or **connect/disconnect** the bot. Let the vibes flow! :notes:"
         music_text_channel = await interaction.guild.create_text_channel(name="vibebot-music", overwrites=overwrites, topic=topic_music_text_channel)
 
         # Create music text channel webhook
