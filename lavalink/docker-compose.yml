@@ -16,8 +16,8 @@ services:
       # set spotify keys
       # If you wish to use your own spotify keys, uncomment and fill the following two lines, otherwise
       # use lavsrc default keys
-      #- PLUGINS_LAVASRC_SPOTIFY_CLIENTID=${PLUGINS_LAVASRC_SPOTIFY_CLIENTID}
-      #- PLUGINS_LAVASRC_SPOTIFY_CLIENTSECRET=${PLUGINS_LAVASRC_SPOTIFY_CLIENTSECRET}
+      - PLUGINS_LAVASRC_SPOTIFY_CLIENTID=${PLUGINS_LAVASRC_SPOTIFY_CLIENTID}
+      - PLUGINS_LAVASRC_SPOTIFY_CLIENTSECRET=${PLUGINS_LAVASRC_SPOTIFY_CLIENTSECRET}
     volumes:
       # mount application.yml from the same directory or use environment variables
       - ./application.yml:/opt/Lavalink/application.yml
