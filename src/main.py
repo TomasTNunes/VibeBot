@@ -18,7 +18,7 @@ load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)),'.env'))
 intents = discord.Intents().all()
 
 # Create bot instance
-bot = commands.Bot(command_prefix='$', intents=intents)
+bot = commands.Bot(command_prefix='$', intents=intents, help_command=None)
 
 # Define cogs to load
 cogs = ['music']
