@@ -1243,8 +1243,11 @@ class MusicCog(commands.Cog):
     ######################################
     ######### PLAYLISTS / COMMANDS #######
     ######################################
+
+    # Create Playlists Group
+    pl = app_commands.Group(name='pl', description='Manage playlists')
     
-    @app_commands.command(name='pl-add', description='Add playlist button to music message')
+    @pl.command(name='add', description='Add playlist button to music message')
     @app_commands.guild_only()
     @app_commands.checks.cooldown(1, 5.0)
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -1339,12 +1342,12 @@ class MusicCog(commands.Cog):
         # Send success message
         await interaction.response.send_message(embed=success_embed(f'Playlist **[{name}]({url})** added.'))
     
-    @app_commands.command(name='pl-show', description='Show added playlists')
+    @pl.command(name='list', description='List all saved playlists')
     @app_commands.guild_only()
     @app_commands.checks.cooldown(1, 10.0)
     @app_commands.checks.bot_has_permissions(embed_links=True)
     async def show_playlists(self, interaction: discord.Interaction):
-        """Show added playlists."""
+        """List all saved playlists."""
         # Get playlists dictionary
         playlists = self.get_guild_music_data(interaction.guild.id).get('playlists')
 
@@ -1356,7 +1359,7 @@ class MusicCog(commands.Cog):
         # Create embed
         embed = discord.Embed(
             color=discord.Colour.from_rgb(137, 76, 193),
-            title="📂 Your Playlists",
+            title="📂 Your Saved Playlists",
             description=""
         )
 
@@ -1390,22 +1393,22 @@ class MusicCog(commands.Cog):
             )
 
         # Footer
-        embed.set_footer(text="➕ Use /pl-add to add a playlist\n➖ Use /pl-remove to a playlist")
+        embed.set_footer(text="➕ Use /pl add to add a playlist\n➖ Use /pl remove to a playlist")
 
         # Send embed
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name='pl-remove', description='Remove playlist')
+    @pl.command(name='remove', description='Remove saved playlist')
     @app_commands.guild_only()
     @app_commands.checks.cooldown(1, 5.0)
     @app_commands.checks.has_permissions(manage_guild=True)
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.autocomplete(name=playlist_autocomplete)
     @app_commands.describe(
-        name="Name of playlists you wish to remove",
+        name="Name of playlist you wish to remove",
     )
     async def remove_playlists(self, interaction: discord.Integration, name: str):
-        """Remove playlists."""
+        """Remove saved playlist."""
         # Check if playlist exists
         if name in self.get_guild_music_data(interaction.guild.id).get('playlists', {}):
             # Delete playlist
