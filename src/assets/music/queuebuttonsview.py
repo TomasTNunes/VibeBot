@@ -28,7 +28,9 @@ class QueueButtonsView(View):
         
         Buttons:
         - Previous page
+        - Refresh
         - Next page
+        - Page selector (Dropdown)
 
         NOTE: This view os not persistent, hence after bot restarts, interations requested before will fail.
         """

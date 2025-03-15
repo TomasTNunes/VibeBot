@@ -5,7 +5,9 @@ import time
 from typing import Optional
 from assets.logger.logger import main_logger as logger, debug_logger
 from assets.utils.reply_embed import error_embed, success_embed, warning_embed, info_embed
-from assets.utils.invitebuttonview import InviteButtonView
+from assets.bot.invitebuttonview import InviteButtonView
+from assets.bot.helpgroupview import HelpGroupView
+from assets.bot.helpview import HelpView
 
 class Bot(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -73,7 +75,7 @@ class Bot(commands.Cog):
     ############ / COMMANDS ##############
     ######################################
 
-    @app_commands.command(name="help", description="See all available commands and how to use them", extras={'Category': 'Bot', 'Sub-Category': None})
+    @app_commands.command(name="help", description="See all available commands and how to use them", extras={'Category': 'Bot'})
     @app_commands.checks.cooldown(1, 5.0)
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.autocomplete(command_name=commands_groups_autocomplete)
@@ -95,7 +97,7 @@ class Bot(commands.Cog):
 
             # Check if command exists
             if not command:
-                return await interaction.response.send_message(embed=error_embed(f'The command `{command_name}` does not exist.'))
+                return await interaction.response.send_message(embed=error_embed(f'The command `/{command_name}` does not exist.'))
             
             # Get app command
             appcommand = self.bot.synced_commands[command.qualified_name]
@@ -131,7 +133,7 @@ class Bot(commands.Cog):
                 embed.set_footer(text="Use /help for more info")
 
                 # Send embed
-                return await interaction.response.send_message(embed=embed)
+                return await interaction.response.send_message(embed=embed, view=HelpGroupView(self.bot, self, command))
             
             # If command is subcommand, check if it exists
             if len(split_command_name) > 1:
@@ -140,7 +142,7 @@ class Bot(commands.Cog):
                 
                 # Check if subcommand exists
                 if not command:
-                    return await interaction.response.send_message(embed=error_embed(f'The command `{command_name}` does not exist.'))
+                    return await interaction.response.send_message(embed=error_embed(f'The command `/{command_name}` does not exist.'))
 
             # Create Command Embed
             embed = self.get_command_embed(command, appcommand)
@@ -148,7 +150,65 @@ class Bot(commands.Cog):
             # Send embed
             return await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="invite", description="Get the bot invite link", extras={'Category': 'Bot', 'Sub-Category': None})
+        # If no command was given, show all commands
+        # Get all commands, excluding group commands
+        all_commands = [com for com in self.bot.tree.walk_commands() if not isinstance(com, app_commands.Group)]
+
+        # Get all categories amd sub-categories, with the respective commands
+        categories = {}
+        for command in all_commands:
+            # Get command category and sub-category
+            category = command.extras.get('Category', 'Uncategorized')
+            sub_category = command.extras.get('Sub-Category', 'None')
+
+            # Add category to dict if not exists
+            if category not in categories:
+                categories[category] = {'None': [], 'total': 0}
+
+            # Increment total commands in category
+            categories[category]['total'] += 1
+
+            # Add command to sub-category
+            categories[category].setdefault(sub_category, []).append(command)
+        
+        # Create embed
+        embed = Embed(
+            color=discord.Colour.from_rgb(137, 76, 193),
+            title=f"🎯 VibeBot Commands ({len(all_commands)})",
+            description = (
+                "Explore all available commands, neatly categorized for easy navigation! 🎵\n\n"
+                "To get started, use `/setup` to create VibeBot's dedicated music text channel. "
+                "Then, join a voice channel and queue songs by name or URL in this chat.\n"
+                "Sit back, relax, and let the vibes flow! 🎶\n᲼"
+            )
+        )
+
+        # Iterate through categories and sub-categories
+        for category, sub_categories in categories.items():
+            # Set embed feld title for each category
+            category_title = f"✨ **{category}** ({sub_categories['total']})"
+            category_value = ""
+
+            # Iterate through each sub-category to set the embed field value
+            for sub_category, commands in sub_categories.items():
+                # Skip total sub-category
+                if sub_category == "total":
+                    continue 
+
+                # Set embed field value for each sub-category (Command in alphabetic order)
+                commands_str = " ".join([f"`/{cmd.qualified_name}`" for cmd in sorted(commands, key=lambda c: c.qualified_name)])
+                category_value += f"> • **{sub_category}:**\n> {commands_str}\n" if sub_category != "None" else f"{commands_str}\n"
+            
+            # Add category field to embed
+            embed.add_field(name=category_title, value=category_value, inline=False)
+
+        # Footer
+        embed.set_footer(text="Use /help <command> for more info on a specific command.")
+
+        # Send embed
+        await interaction.response.send_message(embed=embed, view=HelpView(self.bot, self))
+
+    @app_commands.command(name="invite", description="Get the bot invite link", extras={'Category': 'Bot'})
     @app_commands.checks.cooldown(1, 5.0)
     @app_commands.checks.bot_has_permissions(embed_links=True)
     async def invite(self, interaction: discord.Interaction):
@@ -163,7 +223,7 @@ class Bot(commands.Cog):
 
         await interaction.response.send_message(embed=embed, view=InviteButtonView())
     
-    @app_commands.command(name="ping", description="Shows the bot's ping", extras={'Category': 'Bot', 'Sub-Category': None})
+    @app_commands.command(name="ping", description="Shows the bot's ping", extras={'Category': 'Bot'})
     @app_commands.checks.cooldown(1, 5.0)
     @app_commands.checks.bot_has_permissions(embed_links=True)
     async def ping(self, interaction: discord.Interaction):

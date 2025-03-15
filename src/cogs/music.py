@@ -1073,7 +1073,7 @@ class MusicCog(commands.Cog):
         # Success message
         await interaction.followup.send(embed=success_embed(f'Music text channel fixed.'))
     
-    @app_commands.command(name='default-volume', description='Set the defauft volume when the bot joins a voice channel')
+    @app_commands.command(name='default-volume', description='Set the defauft volume when the bot joins a voice channel', extras={'Category': 'Music', 'Sub-Category': 'Settings'})
     @app_commands.guild_only()
     @app_commands.checks.cooldown(1, 10.0)
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -1573,7 +1573,7 @@ class MusicCog(commands.Cog):
     # Create Playlists Group
     pl = app_commands.Group(name='pl', description='Manage playlists', extras={'Category': 'Music', 'Sub-Category': 'Playlist'})
     
-    @pl.command(name='add', description='Add playlist button to music message')
+    @pl.command(name='add', description='Add playlist button to music message', extras={'Category': 'Music', 'Sub-Category': 'Playlist'})
     @app_commands.guild_only()
     @app_commands.checks.cooldown(1, 5.0)
     @app_commands.checks.has_permissions(manage_guild=True)
