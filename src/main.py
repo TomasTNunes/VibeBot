@@ -53,6 +53,7 @@ async def on_ready():
     # Load / commands
     try:
         synced = await bot.tree.sync()
+        bot.synced_commands = {s.name: s for s in synced}
         logger.info(f'Synced {len(synced)} commands: {[s.name for s in synced]}')
     except Exception as e:
         logger.error(f'Failed to sync commands: {e}')
