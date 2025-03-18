@@ -13,6 +13,7 @@ from assets.logger.logger import music_logger as logger, music_data_logger, debu
 from assets.music.lavalinkvoiceclient import LavalinkVoiceClient
 from assets.music.musicplayerview import MusicPlayerView
 from assets.music.queuebuttonsview import QueueButtonsView
+from assets.music.lastfm import LastFMClient
 from assets.utils.reply_embed import error_embed, success_embed, warning_embed, info_embed
 
 url_rx = re.compile(r'https?://(?:www\.)?.+')
@@ -34,6 +35,10 @@ class MusicCog(commands.Cog):
 
         # To be set to the Lavalink client instance in `cog_load()` 
         self.lavalink = None
+
+        # Initialize LastFM client
+        self.bot.lastfm = LastFMClient(os.getenv('LASTFM_API_KEY'))
+        self.lastfm = self.bot.lastfm
 
         # Path to `music_data.json`
         self.music_data_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),'../assets/data/music_data.json')
@@ -591,20 +596,22 @@ class MusicCog(commands.Cog):
         # if autoplay is on, add recommended track
         # Create query based only on previous track. Only if this track from spotify
         # No need to update embed as add_to_queue will update it, unless add_to_queue fails.
+
+        # Check if autoplay is on
         if event.player.fetch(key='autoplay', default=False):
+            # Get previous track
             track = event.player.fetch(key='previous_track', default=None)
-            if track and track.source_name == 'spotify':
-                query = f'seed_artists={track.plugin_info['artistUrl'].split('/')[-1]}&seed_tracks={track.identifier}&limit=1'
-                add_to_queue_check = await self.add_to_queue(query, self.bot.user, voice_client.guild, search_autoplay=True)
+
+            # Get recommended track
+            recommended_track = self.lastfm.get_recommendation(track['title'], track['author'])
+            
+            # If recommended track exists, add it to queue
+            if recommended_track:
+                add_to_queue_check = await self.add_to_queue(recommended_track, self.bot.user, voice_client.guild)
+
                 # check if successful
                 if not add_to_queue_check:
-                    return   
-            else:
-                # inform user that last track must be from spotify for now
-                guild_music_data = self.get_guild_music_data(guild_id)
-                music_text_channel = self.bot.get_channel(guild_music_data.get('music_text_channel_id'))
-                if music_text_channel:
-                    await music_text_channel.send(embed=warning_embed('`AutoPlay` only works if last music track is from spotify.'), delete_after=15)  
+                    return
             
         # Update music message embed
         await self.update_music_embed(voice_client.guild)
@@ -785,7 +792,7 @@ class MusicCog(commands.Cog):
     ############## ACTIONS ###############
     ######################################
 
-    async def add_to_queue(self, query: str, author: discord.Member, guild: discord.Guild, search_autoplay: bool = False):
+    async def add_to_queue(self, query: str, author: discord.Member, guild: discord.Guild):
         """
         Add query to lavalink queue.
 
@@ -805,11 +812,7 @@ class MusicCog(commands.Cog):
 
         # Check if query is url. If not, the deafault search engine is used.
         if not url_rx.match(query):
-            # Check if autoplay recommendation should be used
-            if search_autoplay:
-                query = f'sprec:{query}'
-            else:
-                query = f'spsearch:{query}'
+            query = f'spsearch:{query}'
         
         # Get the results for the query from Lavalink.
         results = await player.node.get_tracks(query)
