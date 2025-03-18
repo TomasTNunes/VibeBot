@@ -592,10 +592,6 @@ class MusicCog(commands.Cog):
         # if voice client exists and is of type LavalinkVoiceClient, start idle timer task
         if voice_client and isinstance(voice_client, LavalinkVoiceClient):
             await voice_client.start_idle_timer()    
-        
-        # if autoplay is on, add recommended track
-        # Create query based only on previous track. Only if this track from spotify
-        # No need to update embed as add_to_queue will update it, unless add_to_queue fails.
 
         # Check if autoplay is on
         if event.player.fetch(key='autoplay', default=False):
