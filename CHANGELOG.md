@@ -1,12 +1,24 @@
 # CHANGELOG
 
 
+## v1.5.1 (2025-03-18)
+
+### Bug Fixes
+
+- Add missing python requirements
+  ([`2571ecc`](https://github.com/TomasTNunes/VibeBot/commit/2571ecc42b3aa401eec88bed4158cede64d51aff))
+
+
 ## v1.5.0 (2025-03-18)
 
 ### Bug Fixes
 
 - Fix autoplay (implement lastfm api)
   ([`e87f4eb`](https://github.com/TomasTNunes/VibeBot/commit/e87f4eb67b6dc51fb3bff1ecfe7d1c9b73a00893))
+
+* fix: fix autoplay (implement lastfm api)
+
+* docs: add last.fm api key
 
 - Fix permission when creating music channel
   ([`b6db28d`](https://github.com/TomasTNunes/VibeBot/commit/b6db28d9d6aa08006bde486b091c9347c41efebb))
