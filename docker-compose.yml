@@ -16,6 +16,8 @@ services:
       - LAVALINK_ADDRESS=${LAVALINK_ADDRESS}
       - LAVALINK_PORT=${LAVALINK_PORT}
       - LAVALINK_PASSWORD=${LAVALINK_PASSWORD}
+      # Last.fm API Key
+      - LASTFM_API_KEY=${LASTFM_API_KEY}
     volumes:
       # Mount the data directory. Persist data between restarts
       - ./data/:/app/assets/data/

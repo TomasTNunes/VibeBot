@@ -13,6 +13,7 @@ from assets.logger.logger import music_logger as logger, music_data_logger, debu
 from assets.music.lavalinkvoiceclient import LavalinkVoiceClient
 from assets.music.musicplayerview import MusicPlayerView
 from assets.music.queuebuttonsview import QueueButtonsView
+from assets.music.lastfm import LastFMClient
 from assets.utils.reply_embed import error_embed, success_embed, warning_embed, info_embed
 
 url_rx = re.compile(r'https?://(?:www\.)?.+')
@@ -34,6 +35,10 @@ class MusicCog(commands.Cog):
 
         # To be set to the Lavalink client instance in `cog_load()` 
         self.lavalink = None
+
+        # Initialize LastFM client
+        self.bot.lastfm = LastFMClient(os.getenv('LASTFM_API_KEY'))
+        self.lastfm = self.bot.lastfm
 
         # Path to `music_data.json`
         self.music_data_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),'../assets/data/music_data.json')
@@ -591,20 +596,22 @@ class MusicCog(commands.Cog):
         # if autoplay is on, add recommended track
         # Create query based only on previous track. Only if this track from spotify
         # No need to update embed as add_to_queue will update it, unless add_to_queue fails.
+
+        # Check if autoplay is on
         if event.player.fetch(key='autoplay', default=False):
+            # Get previous track
             track = event.player.fetch(key='previous_track', default=None)
-            if track and track.source_name == 'spotify':
-                query = f'seed_artists={track.plugin_info['artistUrl'].split('/')[-1]}&seed_tracks={track.identifier}&limit=1'
-                add_to_queue_check = await self.add_to_queue(query, self.bot.user, voice_client.guild, search_autoplay=True)
+
+            # Get recommended track
+            recommended_track = self.lastfm.get_recommendation(track['title'], track['author'])
+            
+            # If recommended track exists, add it to queue
+            if recommended_track:
+                add_to_queue_check = await self.add_to_queue(recommended_track, self.bot.user, voice_client.guild)
+
                 # check if successful
                 if not add_to_queue_check:
-                    return   
-            else:
-                # inform user that last track must be from spotify for now
-                guild_music_data = self.get_guild_music_data(guild_id)
-                music_text_channel = self.bot.get_channel(guild_music_data.get('music_text_channel_id'))
-                if music_text_channel:
-                    await music_text_channel.send(embed=warning_embed('`AutoPlay` only works if last music track is from spotify.'), delete_after=15)  
+                    return
             
         # Update music message embed
         await self.update_music_embed(voice_client.guild)
@@ -785,7 +792,7 @@ class MusicCog(commands.Cog):
     ############## ACTIONS ###############
     ######################################
 
-    async def add_to_queue(self, query: str, author: discord.Member, guild: discord.Guild, search_autoplay: bool = False):
+    async def add_to_queue(self, query: str, author: discord.Member, guild: discord.Guild):
         """
         Add query to lavalink queue.
 
@@ -805,11 +812,7 @@ class MusicCog(commands.Cog):
 
         # Check if query is url. If not, the deafault search engine is used.
         if not url_rx.match(query):
-            # Check if autoplay recommendation should be used
-            if search_autoplay:
-                query = f'sprec:{query}'
-            else:
-                query = f'spsearch:{query}'
+            query = f'spsearch:{query}'
         
         # Get the results for the query from Lavalink.
         results = await player.node.get_tracks(query)
@@ -977,7 +980,7 @@ class MusicCog(commands.Cog):
     ###### DEFINE SETTINGS / COMMANDS ####
     ######################################
 
-    @app_commands.command(name='setup', description='Create music text channel')
+    @app_commands.command(name='setup', description='Create music text channel', extras={'Category': 'Music', 'Sub-Category': 'Settings'})
     @app_commands.guild_only()  # Only allow command in guilds, not in private messages
     @app_commands.checks.cooldown(1, 10.0)  # Command can be used once every 10 seconds
     @app_commands.checks.has_permissions(manage_channels=True, manage_guild=True)  # Member must have the permissions
@@ -1012,6 +1015,7 @@ class MusicCog(commands.Cog):
         # Create music text channel with required permissions for bot role
         overwrites = {
             interaction.guild.me: discord.PermissionOverwrite(
+                manage_channels=True,
                 read_messages=True,
                 read_message_history=True, 
                 send_messages=True,
@@ -1024,7 +1028,10 @@ class MusicCog(commands.Cog):
                 manage_webhooks=True
             )
         }
-        topic_music_text_channel = ""
+        topic_music_text_channel = "Take full control of VibeBot’s music experience: **play**, **pause**, **resume**, or **stop** \
+                                    tracks; **skip to next** or jump back with **previous track** ; **loop** the entire queue or track; \
+                                    **shuffle** playlists for variety; **adjust volume** on the fly; **add playlists**; **toggle  \
+                                    autoplay mode** ; or **connect/disconnect** the bot. Let the vibes flow! :notes:"
         music_text_channel = await interaction.guild.create_text_channel(name="vibebot-music", overwrites=overwrites, topic=topic_music_text_channel)
 
         # Create music text channel webhook
@@ -1036,7 +1043,7 @@ class MusicCog(commands.Cog):
         # Infom user music text channel was created
         await interaction.response.send_message(embed=success_embed(f'Music text channel created: {music_text_channel.mention}'))
     
-    @app_commands.command(name='setup-fix', description='Recreate music text message in music text channel')
+    @app_commands.command(name='setup-fix', description='Recreate music text message in music text channel', extras={'Category': 'Music', 'Sub-Category': 'Settings'})
     @app_commands.guild_only()
     @app_commands.checks.cooldown(1, 10.0)
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -1044,7 +1051,8 @@ class MusicCog(commands.Cog):
         read_message_history=True,
         manage_messages=True,
         send_messages=True,
-        embed_links=True
+        embed_links=True,
+        manage_webhooks=True
     ) 
     async def fix_setup(self, interaction: discord.Interaction):
         """Fix music music text channel. Recreate music text message. Deletes all other messages in music text channel."""
@@ -1068,7 +1076,7 @@ class MusicCog(commands.Cog):
         # Success message
         await interaction.followup.send(embed=success_embed(f'Music text channel fixed.'))
     
-    @app_commands.command(name='default-volume', description='Set the defauft volume when the bot joins a voice channel')
+    @app_commands.command(name='default-volume', description='Set the defauft volume when the bot joins a voice channel', extras={'Category': 'Music', 'Sub-Category': 'Settings'})
     @app_commands.guild_only()
     @app_commands.checks.cooldown(1, 10.0)
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -1088,7 +1096,7 @@ class MusicCog(commands.Cog):
         # Send success message
         await interaction.response.send_message(embed=success_embed(f'Default volume set to `{volume}%`'))
     
-    @app_commands.command(name='default-autoplay', description='Enable or Disable autoplay by default when the bot joins a voice channel')
+    @app_commands.command(name='default-autoplay', description='Enable or Disable autoplay by default when the bot joins a voice channel', extras={'Category': 'Music', 'Sub-Category': 'Settings'})
     @app_commands.guild_only()
     @app_commands.checks.cooldown(1, 10.0)
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -1097,6 +1105,9 @@ class MusicCog(commands.Cog):
     app_commands.Choice(name="Enable", value=1),
     app_commands.Choice(name="Disable", value=0)
     ])
+    @app_commands.describe(
+        state="Enable/Disable default autoplay",
+    )
     async def set_default_autoplay(self, interaction: discord.Interaction, state: app_commands.Choice[int]):
         """Enable or Disable autoplay by default when the bot joins a voice channel."""
         # Get guild music data and set default volume
@@ -1112,7 +1123,7 @@ class MusicCog(commands.Cog):
         else:
             await interaction.response.send_message(embed=success_embed(f'Default AutoPlay `disabled`'))
     
-    @app_commands.command(name='default-loop', description='Enable or Disable loop queue by default when the bot joins a voice channel')
+    @app_commands.command(name='default-loop', description='Enable or Disable loop queue by default when the bot joins a voice channel', extras={'Category': 'Music', 'Sub-Category': 'Settings'})
     @app_commands.guild_only()
     @app_commands.checks.cooldown(1, 10.0)
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -1121,6 +1132,9 @@ class MusicCog(commands.Cog):
     app_commands.Choice(name="Enable", value=1),
     app_commands.Choice(name="Disable", value=0)
     ])
+    @app_commands.describe(
+        state="Enable/Disable default loop queue",
+    )
     async def set_default_loop(self, interaction: discord.Interaction, state: app_commands.Choice[int]):
         """Enable or Disable loop queue by default when the bot joins a voice channel."""
         # Get guild music data and set default volume
@@ -1136,7 +1150,7 @@ class MusicCog(commands.Cog):
         else:
             await interaction.response.send_message(embed=success_embed(f'Default Loop Queue `disabled`'))
     
-    @app_commands.command(name='auto-disconnect', description='Enable or Disable auto-disconnect when idle. Change auto-disconnect idle timer.')
+    @app_commands.command(name='auto-disconnect', description='Enable or Disable auto-disconnect when idle. Change auto-disconnect idle timer.', extras={'Category': 'Music', 'Sub-Category': 'Settings'})
     @app_commands.guild_only()
     @app_commands.checks.cooldown(1, 10.0)
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -1178,7 +1192,7 @@ class MusicCog(commands.Cog):
         else:
             await interaction.response.send_message(embed=info_embed(f'Auto-disconnect `disabled`.'))
     
-    @app_commands.command(name='settings', description='Shows guild\'s music player settings')
+    @app_commands.command(name='settings', description='Shows guild\'s music player settings', extras={'Category': 'Music', 'Sub-Category': 'Settings'})
     @app_commands.guild_only()
     @app_commands.checks.cooldown(1, 10.0)
     @app_commands.checks.bot_has_permissions(embed_links=True)
@@ -1233,13 +1247,336 @@ class MusicCog(commands.Cog):
 
         # Send embed
         await interaction.response.send_message(embed=embed)
+    
+    ######################################
+    ########## PLAYER / COMMANDS #########
+    ######################################
+    
+    @app_commands.command(name='volume', description='Change bot\'s audio volume', extras={'Category': 'Music', 'Sub-Category': 'Player'})
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 3.0)
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    @app_commands.describe(
+        volume="Set the player volume (0-200)"
+    )
+    async def volume(self, interaction: discord.Interaction, volume: app_commands.Range[int, 0, 200]):
+        """Change bot's audio volume."""
+        # Check if command should continue using check_and_join()
+        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=False)
+        if check:
+            await interaction.response.send_message(embed=error_embed(check), ephemeral=True)
+            return
 
+        # Get player for this guild
+        player = self.lavalink.player_manager.get(interaction.guild.id)
+
+        # Set player volume
+        await player.set_volume(volume)
+
+        # Update music message embed
+        if player.is_playing:
+            await self.update_music_embed(interaction.guild)
+
+        # Send success message
+        await interaction.response.send_message(embed=success_embed(f'Volume set to `{volume}%`'), delete_after=7)
+    
+    @app_commands.command(name='seek', description='Skips to a specified time in the current song', extras={'Category': 'Music', 'Sub-Category': 'Player'})
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 3.0)
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    @app_commands.describe(
+        time="Time to skip to (in seconds)",
+    )
+    async def seek_time(self, interaction: discord.Integration, time: app_commands.Range[int, 0, 999999999]):
+        """Skips to a specific time in the current song."""
+        # Check if command should continue using check_and_join()
+        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=True)
+        if check:
+            await interaction.response.send_message(embed=error_embed(check), ephemeral=True)
+            return
+
+        # Get player for this guild
+        player = self.lavalink.player_manager.get(interaction.guild.id)
+
+        # Get current track
+        current_track = player.current
+
+        # Get current track duration
+        current_track_duration = current_track.duration / 1000
+
+        # Check if given time is valid
+        if time > current_track_duration:
+            await interaction.response.send_message(embed=error_embed(f'Invalid time. Current track is `{int(current_track_duration)}` seconds long.'), ephemeral=True)
+            return
+
+        # Seek to given time
+        await player.seek(time * 1000)
+
+        # Send success message
+        await interaction.response.send_message(embed=success_embed(f'Skipped to `{time}` seconds'), delete_after=7)
+    
+    @app_commands.command(name='fast-forward', description='Fast forwards the current track by a specificied ammount. Default is 15 seconds.', extras={'Category': 'Music', 'Sub-Category': 'Player'})
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 3.0)
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    @app_commands.describe(
+        time="Time to fast forward by (in seconds)",
+    )
+    async def fast_forward(self, interaction: discord.Integration, time: Optional[app_commands.Range[int, 0, 999999999]] = 15):
+        """Fast forwards the current track by a specificied ammount. Default is 15 seconds."""
+        # Check if command should continue using check_and_join()
+        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=True)
+        if check:
+            await interaction.response.send_message(embed=error_embed(check), ephemeral=True)
+            return
+
+        # Get player for this guild
+        player = self.lavalink.player_manager.get(interaction.guild.id)
+
+        # Seek to given time
+        await player.seek(player.position + time * 1000)
+
+        # Send success message
+        await interaction.response.send_message(embed=success_embed(f'Fast forwarded by `{time}` seconds.\nNew position: `{int(player.position / 1000)}s`'), delete_after=7)
+    
+    @app_commands.command(name='rewind', description='Rewinds the current track by a specificied ammount. Default is 15 seconds.', extras={'Category': 'Music', 'Sub-Category': 'Player'})
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 3.0)
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    @app_commands.describe(
+        time="Time to rewind by (in seconds)",
+    )
+    async def rewind(self, interaction: discord.Integration, time: Optional[app_commands.Range[int, 0, 999999999]] = 15):
+        """Rewinds the current track by a specificied ammount. Default is 15 seconds."""
+        # Check if command should continue using check_and_join()
+        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=True)
+        if check:
+            await interaction.response.send_message(embed=error_embed(check), ephemeral=True)
+            return
+
+        # Get player for this guild
+        player = self.lavalink.player_manager.get(interaction.guild.id)
+
+        # Seek to given time
+        await player.seek(player.position - time * 1000)
+
+        # Send success message
+        await interaction.response.send_message(embed=success_embed(f'Rewound by `{time}` seconds.\nNew position: `{int(player.position / 1000)}s`'), delete_after=7)
+    
+    ######################################
+    ########### QUEUE / COMMANDS #########
+    ######################################
+
+    @app_commands.command(name='queue', description='Shows the queue', extras={'Category': 'Music', 'Sub-Category': 'Queue'})
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 5.0)
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    async def queue(self, interaction: discord.Integration):
+        """Shows the queue."""
+        # Check if command should continue using check_and_join()
+        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=False)
+        if check:
+            await interaction.response.send_message(embed=error_embed(check), ephemeral=True)
+            return
+        
+        # Get player for this guild
+        player = self.lavalink.player_manager.get(interaction.guild.id)
+
+        # Get current track
+        current_track = player.current
+
+        # Get queue list
+        queue = player.queue
+
+        # Get queue size
+        queue_size = len(queue)
+
+        # Get queue time in ms
+        queue_time = 0
+        queue_time = sum(t.duration for t in queue if not t.is_stream)
+        queue_time += current_track.duration if current_track and not current_track.is_stream else 0
+
+        # Get first 10 or less tracks to show
+        if queue_size > 10:
+            show_queue = queue[:10]
+        else:
+            show_queue = queue
+
+        # Gat total number of pages
+        total_pages = queue_size // 10
+        total_pages += 1 if queue_size % 10 or queue_size == 0 else 0
+        
+        # Create embed
+        embed = self.queue_embed(interaction.guild, 
+                                 current_track, 
+                                 show_queue, 
+                                 queue_size, 
+                                 queue_time,
+                                 1,
+                                 total_pages)
+
+        # Send embed
+        await interaction.response.send_message(embed=embed, view=QueueButtonsView(self, interaction.guild, 1, total_pages), ephemeral=True)
+
+    @app_commands.command(name='clear-queue', description='Clear the queue', extras={'Category': 'Music', 'Sub-Category': 'Queue'})
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 5.0)
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    async def clear_queue(self, interaction: discord.Integration):
+        """Clear the queue."""
+        # Check if command should continue using check_and_join()
+        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=True)
+        if check:
+            await interaction.response.send_message(embed=error_embed(check), ephemeral=True)
+            return
+
+        # Get player for this guild
+        player = self.lavalink.player_manager.get(interaction.guild.id)
+
+        # Clear queue
+        player.queue.clear()
+
+        # Update music message embed
+        await self.update_music_embed(interaction.guild)
+
+        # Send success message
+        await interaction.response.send_message(embed=success_embed(f'Queue cleared.'), delete_after=7)
+    
+    @app_commands.command(name='jump', description='Jump to specified track in the queue', extras={'Category': 'Music', 'Sub-Category': 'Queue'})
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 5.0)
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    @app_commands.describe(
+        position="Position of track in queue",
+    )
+    async def jump(self, interaction: discord.Integration, position: app_commands.Range[int, 1, 999999999]):
+        """Jump to specified track in the queue."""
+        # Check if command should continue using check_and_join()
+        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=True)
+        if check:
+            await interaction.response.send_message(embed=error_embed(check), ephemeral=True)
+            return
+
+        # Get player for this guild
+        player = self.lavalink.player_manager.get(interaction.guild.id)
+
+        # Get queue list
+        queue = player.queue
+
+        # Check if given position is valid
+        if position > len(queue):
+            await interaction.response.send_message(embed=error_embed(f'Position must be between `1` and `{len(queue)}`.'), ephemeral=True)
+            return
+
+        # Check if loop queue is enabled
+        if player.loop == player.LOOP_QUEUE:
+            player.queue = queue[position - 1:] + queue[:position - 1]
+        else:
+            player.queue = queue[position - 1:]
+        
+        # Play selected track
+        if player.loop == player.LOOP_SINGLE:
+            await player.play(player.queue.pop(0))
+        else:
+            await player.skip()
+
+        # Send success message
+        await interaction.response.send_message(embed=success_embed(f'Jumped to position `{position}` in queue.'), delete_after=7)
+    
+    @app_commands.command(name='remove', description='Remove specified track from queue', extras={'Category': 'Music', 'Sub-Category': 'Queue'})
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 5.0)
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    @app_commands.describe(
+        position="Position of track in queue",
+    )
+    async def remove_from_queue(self, interaction: discord.Integration, position: app_commands.Range[int, 1, 999999999]):
+        """Remove specified track from queue"""
+        # Check if command should continue using check_and_join()
+        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=True)
+        if check:
+            await interaction.response.send_message(embed=error_embed(check), ephemeral=True)
+            return
+
+        # Get player for this guild
+        player = self.lavalink.player_manager.get(interaction.guild.id)
+
+        # Get queue list
+        queue = player.queue
+
+        # Check if given position is valid
+        if position > len(queue):
+            await interaction.response.send_message(embed=error_embed(f'Position must be between `1` and `{len(queue)}`.'), ephemeral=True)
+            return
+
+        # Remove track from queue
+        removed_track = player.queue.pop(position-1)
+
+        # Update music message embed
+        await self.update_music_embed(interaction.guild)
+
+        # Send success message
+        message = (
+            f'Track `{position}. {removed_track.author} - {removed_track.title}` removed from queue.'
+            if removed_track.is_seekable else
+            f'Track `{position}. {removed_track.uri}` removed from queue.'
+        )
+        await interaction.response.send_message(embed=success_embed(message), delete_after=7)
+    
+    @app_commands.command(name='move', description='Move specified track in queue', extras={'Category': 'Music', 'Sub-Category': 'Queue'})
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 5.0)
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    @app_commands.rename(
+    frrom="from"  
+    )
+    @app_commands.describe(
+        frrom="Current position of track in queue",
+        to="New position of track in queue"
+    )
+    async def move(self, interaction: discord.Integration, frrom: app_commands.Range[int, 1, 999999999], to: app_commands.Range[int, 1, 999999999]):
+        """Move specified track in queue."""
+        # Check if command should continue using check_and_join()
+        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=True)
+        if check:
+            await interaction.response.send_message(embed=error_embed(check), ephemeral=True)
+            return
+
+        # Get player for this guild
+        player = self.lavalink.player_manager.get(interaction.guild.id)
+
+        # Check if given from position is valid
+        if frrom > len(player.queue):
+            await interaction.response.send_message(embed=error_embed(f'`from` position must be between `1` and `{len(player.queue)}`.'), ephemeral=True)
+            return
+
+        # Check if to position is valid
+        if to > len(player.queue):
+            to = len(player.queue)
+
+        # Move track in queue
+        track = player.queue.pop(frrom-1)
+        player.queue.insert(to-1, track)
+
+        # Update music message embed
+        await self.update_music_embed(interaction.guild)
+
+        # Send success message
+        message = (
+            f'Moved track `{track.author} - {track.title}` from **{frrom}.** to **{to}.** in queue.'
+            if track.is_seekable else
+            f'Moved track `{track.uri}` from **{frrom}.** to **{to}.** in queue.'
+        )
+        await interaction.response.send_message(embed=success_embed(message), delete_after=7)
     
     ######################################
     ######### PLAYLISTS / COMMANDS #######
     ######################################
+
+    # Create Playlists Group
+    pl = app_commands.Group(name='pl', description='Manage playlists', extras={'Category': 'Music', 'Sub-Category': 'Playlist'})
     
-    @app_commands.command(name='pl-add', description='Add playlist button to music message')
+    @pl.command(name='add', description='Add playlist button to music message', extras={'Category': 'Music', 'Sub-Category': 'Playlist'})
     @app_commands.guild_only()
     @app_commands.checks.cooldown(1, 5.0)
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -1255,7 +1592,7 @@ class MusicCog(commands.Cog):
         emoji="Playlist button emoji",
         shuffle="If playlist should be shuffled when played. Default: `No`",
     )
-    async def set_playlist_add(self, 
+    async def add_playlist(self, 
                                interaction: discord.Interaction, 
                                name: app_commands.Range[str, 1, 50], 
                                url: str, 
@@ -1334,12 +1671,12 @@ class MusicCog(commands.Cog):
         # Send success message
         await interaction.response.send_message(embed=success_embed(f'Playlist **[{name}]({url})** added.'))
     
-    @app_commands.command(name='pl-show', description='Show added playlists')
+    @pl.command(name='list', description='List all saved playlists', extras={'Category': 'Music', 'Sub-Category': 'Playlist'})
     @app_commands.guild_only()
     @app_commands.checks.cooldown(1, 10.0)
     @app_commands.checks.bot_has_permissions(embed_links=True)
     async def show_playlists(self, interaction: discord.Interaction):
-        """Show added playlists."""
+        """List all saved playlists."""
         # Get playlists dictionary
         playlists = self.get_guild_music_data(interaction.guild.id).get('playlists')
 
@@ -1351,7 +1688,7 @@ class MusicCog(commands.Cog):
         # Create embed
         embed = discord.Embed(
             color=discord.Colour.from_rgb(137, 76, 193),
-            title="📂 Your Playlists",
+            title="📂 Your Saved Playlists",
             description=""
         )
 
@@ -1385,22 +1722,22 @@ class MusicCog(commands.Cog):
             )
 
         # Footer
-        embed.set_footer(text="➕ Use /pl-add to add a playlist\n➖ Use /pl-remove to a playlist")
+        embed.set_footer(text="➕ Use /pl add to add a playlist\n➖ Use /pl remove to a playlist")
 
         # Send embed
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name='pl-remove', description='Remove playlist')
+    @pl.command(name='remove', description='Remove saved playlist', extras={'Category': 'Music', 'Sub-Category': 'Playlist'})
     @app_commands.guild_only()
     @app_commands.checks.cooldown(1, 5.0)
     @app_commands.checks.has_permissions(manage_guild=True)
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.autocomplete(name=playlist_autocomplete)
     @app_commands.describe(
-        name="Name of playlists you wish to remove",
+        name="Name of playlist you wish to remove",
     )
     async def remove_playlists(self, interaction: discord.Integration, name: str):
-        """Remove playlists."""
+        """Remove saved playlist."""
         # Check if playlist exists
         if name in self.get_guild_music_data(interaction.guild.id).get('playlists', {}):
             # Delete playlist
@@ -1417,323 +1754,6 @@ class MusicCog(commands.Cog):
             return
         await interaction.response.send_message(embed=warning_embed(f'Playlist named `{name}` not found.\nUse `/pl-show` to see list of existing playlists.'),
                                                 ephemeral=True)
-    
-    ######################################
-    ########## PLAYER / COMMANDS #########
-    ######################################
-    
-    @app_commands.command(name='volume', description='Change bot\'s audio volume')
-    @app_commands.guild_only()
-    @app_commands.checks.cooldown(1, 3.0)
-    @app_commands.checks.bot_has_permissions(embed_links=True)
-    @app_commands.describe(
-        volume="Set the player volume (0-200)"
-    )
-    async def volume(self, interaction: discord.Interaction, volume: app_commands.Range[int, 0, 200]):
-        """Change bot's audio volume."""
-        # Check if command should continue using check_and_join()
-        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=False)
-        if check:
-            await interaction.response.send_message(embed=error_embed(check), ephemeral=True)
-            return
-
-        # Get player for this guild
-        player = self.lavalink.player_manager.get(interaction.guild.id)
-
-        # Set player volume
-        await player.set_volume(volume)
-
-        # Update music message embed
-        if player.is_playing:
-            await self.update_music_embed(interaction.guild)
-
-        # Send success message
-        await interaction.response.send_message(embed=success_embed(f'Volume set to `{volume}%`'), delete_after=7)
-    
-    @app_commands.command(name='seek', description='Skips to a specified time in the current song')
-    @app_commands.guild_only()
-    @app_commands.checks.cooldown(1, 3.0)
-    @app_commands.checks.bot_has_permissions(embed_links=True)
-    @app_commands.describe(
-        time="Time to skip to (in seconds)",
-    )
-    async def seek_time(self, interaction: discord.Integration, time: app_commands.Range[int, 0, 999999999]):
-        """Skips to a specific time in the current song."""
-        # Check if command should continue using check_and_join()
-        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=True)
-        if check:
-            await interaction.response.send_message(embed=error_embed(check), ephemeral=True)
-            return
-
-        # Get player for this guild
-        player = self.lavalink.player_manager.get(interaction.guild.id)
-
-        # Get current track
-        current_track = player.current
-
-        # Get current track duration
-        current_track_duration = current_track.duration / 1000
-
-        # Check if given time is valid
-        if time > current_track_duration:
-            await interaction.response.send_message(embed=error_embed(f'Invalid time. Current track is `{int(current_track_duration)}` seconds long.'), ephemeral=True)
-            return
-
-        # Seek to given time
-        await player.seek(time * 1000)
-
-        # Send success message
-        await interaction.response.send_message(embed=success_embed(f'Skipped to `{time}` seconds'), delete_after=7)
-    
-    @app_commands.command(name='fast-forward', description='Fast forwards the current track by a specificied ammount. Default is 15 seconds.')
-    @app_commands.guild_only()
-    @app_commands.checks.cooldown(1, 3.0)
-    @app_commands.checks.bot_has_permissions(embed_links=True)
-    @app_commands.describe(
-        time="Time to fast forward by (in seconds)",
-    )
-    async def fast_forward(self, interaction: discord.Integration, time: Optional[app_commands.Range[int, 0, 999999999]] = 15):
-        """Fast forwards the current track by a specificied ammount. Default is 15 seconds."""
-        # Check if command should continue using check_and_join()
-        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=True)
-        if check:
-            await interaction.response.send_message(embed=error_embed(check), ephemeral=True)
-            return
-
-        # Get player for this guild
-        player = self.lavalink.player_manager.get(interaction.guild.id)
-
-        # Seek to given time
-        await player.seek(player.position + time * 1000)
-
-        # Send success message
-        await interaction.response.send_message(embed=success_embed(f'Fast forwarded by `{time}` seconds.\nNew position: `{int(player.position / 1000)}s`'), delete_after=7)
-    
-    @app_commands.command(name='rewind', description='Rewinds the current track by a specificied ammount. Default is 15 seconds.')
-    @app_commands.guild_only()
-    @app_commands.checks.cooldown(1, 3.0)
-    @app_commands.checks.bot_has_permissions(embed_links=True)
-    @app_commands.describe(
-        time="Time to rewind by (in seconds)",
-    )
-    async def rewind(self, interaction: discord.Integration, time: Optional[app_commands.Range[int, 0, 999999999]] = 15):
-        """Rewinds the current track by a specificied ammount. Default is 15 seconds."""
-        # Check if command should continue using check_and_join()
-        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=True)
-        if check:
-            await interaction.response.send_message(embed=error_embed(check), ephemeral=True)
-            return
-
-        # Get player for this guild
-        player = self.lavalink.player_manager.get(interaction.guild.id)
-
-        # Seek to given time
-        await player.seek(player.position - time * 1000)
-
-        # Send success message
-        await interaction.response.send_message(embed=success_embed(f'Rewound by `{time}` seconds.\nNew position: `{int(player.position / 1000)}s`'), delete_after=7)
-    
-    @app_commands.command(name='clear-queue', description='Clear the queue')
-    @app_commands.guild_only()
-    @app_commands.checks.cooldown(1, 5.0)
-    @app_commands.checks.bot_has_permissions(embed_links=True)
-    async def clear_queue(self, interaction: discord.Integration):
-        """Clear the queue."""
-        # Check if command should continue using check_and_join()
-        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=True)
-        if check:
-            await interaction.response.send_message(embed=error_embed(check), ephemeral=True)
-            return
-
-        # Get player for this guild
-        player = self.lavalink.player_manager.get(interaction.guild.id)
-
-        # Clear queue
-        player.queue.clear()
-
-        # Update music message embed
-        await self.update_music_embed(interaction.guild)
-
-        # Send success message
-        await interaction.response.send_message(embed=success_embed(f'Queue cleared.'), delete_after=7)
-    
-    @app_commands.command(name='jump', description='Jump to specified track in the queue')
-    @app_commands.guild_only()
-    @app_commands.checks.cooldown(1, 5.0)
-    @app_commands.checks.bot_has_permissions(embed_links=True)
-    @app_commands.describe(
-        position="Position of track in queue",
-    )
-    async def jump(self, interaction: discord.Integration, position: app_commands.Range[int, 1, 999999999]):
-        """Jump to specified track in the queue."""
-        # Check if command should continue using check_and_join()
-        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=True)
-        if check:
-            await interaction.response.send_message(embed=error_embed(check), ephemeral=True)
-            return
-
-        # Get player for this guild
-        player = self.lavalink.player_manager.get(interaction.guild.id)
-
-        # Get queue list
-        queue = player.queue
-
-        # Check if given position is valid
-        if position > len(queue):
-            await interaction.response.send_message(embed=error_embed(f'Position must be between `1` and `{len(queue)}`.'), ephemeral=True)
-            return
-
-        # Check if loop queue is enabled
-        if player.loop == player.LOOP_QUEUE:
-            player.queue = queue[position - 1:] + queue[:position - 1]
-        else:
-            player.queue = queue[position - 1:]
-        
-        # Play selected track
-        if player.loop == player.LOOP_SINGLE:
-            await player.play(player.queue.pop(0))
-        else:
-            await player.skip()
-
-        # Send success message
-        await interaction.response.send_message(embed=success_embed(f'Jumped to position `{position}` in queue.'), delete_after=7)
-    
-    @app_commands.command(name='remove', description='Remove specified track from queue')
-    @app_commands.guild_only()
-    @app_commands.checks.cooldown(1, 5.0)
-    @app_commands.checks.bot_has_permissions(embed_links=True)
-    @app_commands.describe(
-        position="Position of track in queue",
-    )
-    async def remove_from_queue(self, interaction: discord.Integration, position: app_commands.Range[int, 1, 999999999]):
-        """Remove specified track from queue"""
-        # Check if command should continue using check_and_join()
-        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=True)
-        if check:
-            await interaction.response.send_message(embed=error_embed(check), ephemeral=True)
-            return
-
-        # Get player for this guild
-        player = self.lavalink.player_manager.get(interaction.guild.id)
-
-        # Get queue list
-        queue = player.queue
-
-        # Check if given position is valid
-        if position > len(queue):
-            await interaction.response.send_message(embed=error_embed(f'Position must be between `1` and `{len(queue)}`.'), ephemeral=True)
-            return
-
-        # Remove track from queue
-        removed_track = player.queue.pop(position-1)
-
-        # Update music message embed
-        await self.update_music_embed(interaction.guild)
-
-        # Send success message
-        message = (
-            f'Track `{position}. {removed_track.author} - {removed_track.title}` removed from queue.'
-            if removed_track.is_seekable else
-            f'Track `{position}. {removed_track.uri}` removed from queue.'
-        )
-        await interaction.response.send_message(embed=success_embed(message), delete_after=7)
-    
-    @app_commands.command(name='move', description='Move specified track in queue')
-    @app_commands.guild_only()
-    @app_commands.checks.cooldown(1, 5.0)
-    @app_commands.checks.bot_has_permissions(embed_links=True)
-    @app_commands.rename(
-    frrom="from"  
-    )
-    @app_commands.describe(
-        frrom="Current position of track in queue",
-        to="New position of track in queue"
-    )
-    async def move(self, interaction: discord.Integration, frrom: app_commands.Range[int, 1, 999999999], to: app_commands.Range[int, 1, 999999999]):
-        """Move specified track in queue."""
-        # Check if command should continue using check_and_join()
-        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=True)
-        if check:
-            await interaction.response.send_message(embed=error_embed(check), ephemeral=True)
-            return
-
-        # Get player for this guild
-        player = self.lavalink.player_manager.get(interaction.guild.id)
-
-        # Check if given from position is valid
-        if frrom > len(player.queue):
-            await interaction.response.send_message(embed=error_embed(f'`from` position must be between `1` and `{len(player.queue)}`.'), ephemeral=True)
-            return
-
-        # Check if to position is valid
-        if to > len(player.queue):
-            to = len(player.queue)
-
-        # Move track in queue
-        track = player.queue.pop(frrom-1)
-        player.queue.insert(to-1, track)
-
-        # Update music message embed
-        await self.update_music_embed(interaction.guild)
-
-        # Send success message
-        message = (
-            f'Moved track `{track.author} - {track.title}` from **{frrom}.** to **{to}.** in queue.'
-            if track.is_seekable else
-            f'Moved track `{track.uri}` from **{frrom}.** to **{to}.** in queue.'
-        )
-        await interaction.response.send_message(embed=success_embed(message), delete_after=7)
-    
-    @app_commands.command(name='queue', description='Shows the queue')
-    @app_commands.guild_only()
-    @app_commands.checks.cooldown(1, 5.0)
-    @app_commands.checks.bot_has_permissions(embed_links=True)
-    async def queue(self, interaction: discord.Integration):
-        """Shows the queue."""
-        # Check if command should continue using check_and_join()
-        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=False)
-        if check:
-            await interaction.response.send_message(embed=error_embed(check), ephemeral=True)
-            return
-        
-        # Get player for this guild
-        player = self.lavalink.player_manager.get(interaction.guild.id)
-
-        # Get current track
-        current_track = player.current
-
-        # Get queue list
-        queue = player.queue
-
-        # Get queue size
-        queue_size = len(queue)
-
-        # Get queue time in ms
-        queue_time = 0
-        queue_time = sum(t.duration for t in queue if not t.is_stream)
-        queue_time += current_track.duration if current_track and not current_track.is_stream else 0
-
-        # Get first 10 or less tracks to show
-        if queue_size > 10:
-            show_queue = queue[:10]
-        else:
-            show_queue = queue
-
-        # Gat total number of pages
-        total_pages = queue_size // 10
-        total_pages += 1 if queue_size % 10 or queue_size == 0 else 0
-        
-        # Create embed
-        embed = self.queue_embed(interaction.guild, 
-                                 current_track, 
-                                 show_queue, 
-                                 queue_size, 
-                                 queue_time,
-                                 1,
-                                 total_pages)
-
-        # Send embed
-        await interaction.response.send_message(embed=embed, view=QueueButtonsView(self, interaction.guild, 1, total_pages), ephemeral=True)
 
 async def setup(bot):
     # Add MusicCog to bot instance
