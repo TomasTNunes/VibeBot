@@ -1,6 +1,42 @@
 # CHANGELOG
 
 
+## v1.5.0 (2025-03-18)
+
+### Bug Fixes
+
+- Fix autoplay (implement lastfm api)
+  ([`e87f4eb`](https://github.com/TomasTNunes/VibeBot/commit/e87f4eb67b6dc51fb3bff1ecfe7d1c9b73a00893))
+
+* fix: fix autoplay (implement lastfm api)
+
+* docs: add last.fm api key
+
+- Fix permission when creating music channel
+  ([`b6db28d`](https://github.com/TomasTNunes/VibeBot/commit/b6db28d9d6aa08006bde486b091c9347c41efebb))
+
+### Code Style
+
+- Add command group for playlists
+  ([`68cb8cb`](https://github.com/TomasTNunes/VibeBot/commit/68cb8cbd908c5bac99fc96ba47e3bf56ca731d32))
+
+- Add topic for music text channel
+  ([`0728840`](https://github.com/TomasTNunes/VibeBot/commit/07288404b72067c4ad0eef819df260d14ce8f534))
+
+### Features
+
+- Add /help <command> command
+  ([`2a39354`](https://github.com/TomasTNunes/VibeBot/commit/2a393549e04ff5e7dbe5a06e55f2ac0701701199))
+
+- Add /help command
+  ([`767224d`](https://github.com/TomasTNunes/VibeBot/commit/767224d024ef053b34bb270a296f659f1b9ec242))
+
+### Refactoring
+
+- Move bot general commands to bot cog
+  ([`5919590`](https://github.com/TomasTNunes/VibeBot/commit/5919590bbf1a012580433b14ea496837ef75fc8d))
+
+
 ## v1.4.0 (2025-03-12)
 
 ### Code Style
