@@ -1702,6 +1702,7 @@ class MusicCog(commands.Cog):
 
             # Get button label
             button_label = playlist.get('button_name', '')
+            button_label = f'`{button_label}`' if button_label else ''
 
             # Combine emoji and button label (ensure no extra spaces)
             button_display = f"{emoji} {button_label}".strip()
@@ -1711,7 +1712,7 @@ class MusicCog(commands.Cog):
                 name='',
                 value=(
                     f"**[{i+1}]** - 🎶  **[{pl_name}]({playlist['url']})**  🎶\n"
-                    f"*Button:* `{button_display}`\n"
+                    f"*Button:* {button_display}\n"
                     f"*Shuffle:* `{playlist.get('shuffle', False)}`"
                 ),
                 inline=False
