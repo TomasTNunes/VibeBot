@@ -1614,6 +1614,44 @@ class MusicCog(commands.Cog):
         if button_name and not button_name.isascii():
             await interaction.response.send_message(embed=error_embed("Button name must contain only ASCII characters."), ephemeral=True)
             return
+
+        # Verify if only one emoji was given, in case any was given at all
+        if emoji:
+            # Regex to match a single Unicode emoji
+            unicode_emoji_regex = re.compile(
+                r"^(?:"
+                r"[\U0001F1E6-\U0001F1FF]{2}|"  # Flags (🇺🇸, 🇪🇸, etc.)
+                r"[\U0001F300-\U0001F5FF]|"  # Symbols & pictographs
+                r"[\U0001F600-\U0001F64F]|"  # Emoticons (😀, 😂, etc.)
+                r"[\U0001F680-\U0001F6FF]|"  # Transport & map symbols
+                r"[\U0001F700-\U0001F77F]|"  # Alchemical symbols
+                r"[\U0001F780-\U0001F7FF]|"  # Geometric shapes
+                r"[\U0001F800-\U0001F8FF]|"  # Supplemental symbols
+                r"[\U0001F900-\U0001F9FF]|"  # Additional emoticons
+                r"[\U0001FA70-\U0001FAFF]|"  # More symbols
+                r"[\U00002600-\U000026FF]|"  # Miscellaneous symbols
+                r"[\U00002700-\U000027BF]|"  # Dingbats
+                r"[\U00002B50-\U00002B59]"  # Stars and symbols
+                r")(?:\u200D(?:"
+                r"[\U0001F300-\U0001F5FF]|"  # Allowing ZWJ sequences
+                r"[\U0001F600-\U0001F64F]|"
+                r"[\U0001F680-\U0001F6FF]|"
+                r"[\U0001F700-\U0001F77F]|"
+                r"[\U0001F780-\U0001F7FF]|"
+                r"[\U0001F800-\U0001F8FF]|"
+                r"[\U0001F900-\U0001F9FF]|"
+                r"[\U0001FA70-\U0001FAFF]"
+                r"))*$"
+            )
+            
+            # Check if it's a valid custom emoji (formatted as `<:name:id>`)
+            custom_emoji_match = re.fullmatch(r"<:\w+:\d+>", emoji)
+
+            # Check if it's exactly one Unicode emoji
+            unicode_emoji_match = bool(unicode_emoji_regex.fullmatch(emoji))
+
+            if not custom_emoji_match and not unicode_emoji_match:
+                return await interaction.response.send_message(embed=error_embed("Please provide a single valid emoji (Unicode or custom)."), ephemeral=True)
         
         # Get Playlists dict from guild music data
         playlists_dict = self.get_guild_music_data(interaction.guild.id).get('playlists', {})
