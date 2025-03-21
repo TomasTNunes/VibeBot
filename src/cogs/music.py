@@ -268,7 +268,7 @@ class MusicCog(commands.Cog):
                 return None
 
         # Create webhook
-        webhook = await music_text_channel.create_webhook(name=self.bot.user.name, 
+        webhook = await music_text_channel.create_webhook(name=f'{self.bot.user.name} Player', 
                                                           avatar=await self.bot.user.display_avatar.read())
 
         # Store webhook in `music_data.json`
@@ -309,8 +309,12 @@ class MusicCog(commands.Cog):
         if not musicplayerview:
             musicplayerview = MusicPlayerView(self.bot, self, webhook.guild)
 
+        # Get bot nick name in guild
+        bot_guild_user = webhook.guild.get_member(self.bot.user.id)
+        bot_nick = bot_guild_user.display_name if bot_guild_user else self.bot.user.name
+
         # Send the music message (this adds view to bots persistent views automatically)
-        music_message = await webhook.send(message_text, embed=embed, view=musicplayerview, wait=True)
+        music_message = await webhook.send(message_text, embed=embed, view=musicplayerview, wait=True, username=bot_nick, avatar_url=self.bot.user.display_avatar.url)
 
         # Add guild music data to music data and save in `music_data.json`
         self.add_music_data(
@@ -451,7 +455,7 @@ class MusicCog(commands.Cog):
 
         logger.info('Music text channels cleaned up, music messages set to default and MusicPlayerViews.')
     
-    async def cleanup_music_channel(self, guild_music_data: dict):
+    async def cleanup_music_channel(self, guild_music_data: dict, force_recreate: bool = False):
         """
         For given guild:
         Remove messages from music text channels that are not the music message and create missing music messages.
@@ -472,8 +476,11 @@ class MusicCog(commands.Cog):
         # get music message from ID
         music_message_id = guild_music_data.get('music_message_id')
 
-        # delete all messages in music text channel that are not the music message
-        await webhook.channel.purge(check=lambda m: m.id != music_message_id, bulk=True)
+        # delete all messages in music text channel that are not the music message, unless , force_recreate is True
+        if not force_recreate:
+            await webhook.channel.purge(check=lambda m: m.id != music_message_id, bulk=True)
+        else:
+            await webhook.channel.purge(bulk=True)
 
         # Get music message
         try:
@@ -1067,7 +1074,7 @@ class MusicCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         # Clean music text channel
-        await self.cleanup_music_channel(guild_music_data)
+        await self.cleanup_music_channel(guild_music_data, force_recreate=True)
 
         # Success message
         await interaction.followup.send(embed=success_embed(f'Music text channel fixed.'))
