@@ -1087,7 +1087,7 @@ class MusicCog(commands.Cog):
         else:
             await interaction.response.send_message(embed=info_embed(f'Auto-disconnect `disabled`.'))
     
-    @app_commands.command(name='settings', description='Shows guild\'s music player settings', extras={'Category': 'Music', 'Sub-Category': 'Settings'})
+    @app_commands.command(name='music-settings', description='Shows guild\'s music player settings', extras={'Category': 'Music', 'Sub-Category': 'Settings'})
     @app_commands.guild_only()
     @app_commands.checks.cooldown(1, 10.0)
     @app_commands.checks.bot_has_permissions(embed_links=True)
