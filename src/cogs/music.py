@@ -5,11 +5,10 @@ from discord.ext import commands
 import lavalink
 from lavalink.server import LoadType
 from lavalink.events import TrackStartEvent, QueueEndEvent, NodeConnectedEvent, TrackEndEvent
-import json
 import asyncio
 import re
 from typing import Union, List, Any, Optional
-from assets.logger.logger import music_logger as logger, music_data_logger, debug_logger
+from assets.logger.logger import music_logger as logger, debug_logger
 from assets.music.lavalinkvoiceclient import LavalinkVoiceClient
 from assets.music.musicplayerview import MusicPlayerView
 from assets.music.queuebuttonsview import QueueButtonsView
@@ -40,14 +39,11 @@ class MusicCog(commands.Cog):
         self.bot.lastfm = LastFMClient(os.getenv('LASTFM_API_KEY'))
         self.lastfm = self.bot.lastfm
 
-        # Path to `music_data.json`
-        self.music_data_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),'../assets/data/music_data.json')
-
-        # Load music data from `music_data.json`
-        self.music_data = self.load_music_data()
-
-        # Cleanup music data for guilds where the bot is no longer in
-        self.cleanup_music_data()
+        # Set music_data to Data Manager (loaded in dataloader cog)
+        self.music_data = self.bot.data_manager
+        self.save_music_data = self.music_data.save_music_data
+        self.add_music_data = self.music_data.add_music_data
+        self.get_guild_music_data = self.music_data.get_guild_music_data
 
     ######################################
     ############# COG LOAD ###############
@@ -139,103 +135,6 @@ class MusicCog(commands.Cog):
                 logger.info('Lavalink client closed.')
             except Exception as e:
                 logger.error(f'Failed to close Lavalink Client: {e}')
-    
-    ######################################
-    ############ MUSIC DATA ##############
-    ######################################
-
-    def load_music_data(self):
-        """Load music data from the `music_data.json` file if it exists, otherwise return and save an empty dictionary."""
-        try:
-            with open(self.music_data_path, 'r', encoding="utf-8") as file:
-                data = json.load(file)
-                logger.info(f'Music data loaded from `music_data.json`.')
-                music_data_logger.info(f'Music data loaded from `music_data.json`.')
-                return data
-        except FileNotFoundError:
-            logger.warning(f'`music_data.json` not found, setting `self.music_data` to an empty dictionary.')
-            music_data_logger.warning(f'`music_data.json` not found, setting `self.music_data` to an empty dictionary.')
-            return {}
-        except Exception as e:
-            logger.error(f'Failed to load music data: {e}')
-            music_data_logger.error(f'Failed to load music data: {e}')
-            raise # Re-raise the exception to prevent the cog from loading
-    
-    def save_music_data(self):
-        """Save music data to the `music_data.json` file."""
-        # Save new self.music_data
-        try:
-            with open(self.music_data_path, 'w', encoding="utf-8") as file:
-                json.dump(self.music_data, file, indent=4, ensure_ascii=False)
-                music_data_logger.info(f'Music data saved to `music_data.json`.')
-        except Exception as e:
-            music_data_logger.error(f'Failed to save music data: {e}')
-    
-    def cleanup_music_data(self):
-        """Remove music data for guilds where the bot is no longer in."""
-        # Get a list of guild IDs where the bot is currently in
-        guild_ids = [str(guild.id) for guild in self.bot.guilds]
-
-        # Remove music data for guilds where the bot is no longer in
-        for guild_id in list(self.music_data.keys()):
-            if guild_id not in guild_ids:
-                self.music_data.pop(guild_id, None)
-                music_data_logger.info(f'Music data for guild {guild_id} removed.')
-        logger.info(f'Music data cleaned for guilds where the bot is no longer in.')
-        music_data_logger.info(f'Music data cleaned for guilds where the bot is no longer in.')
-        
-        # Save the updated music data
-        self.save_music_data()
-    
-    def add_music_data(self, guild_id: int, keys: Union[str, List[str]], values: Union[Any, List[Any]], root_keys: Union[str, List[str]] = None):
-        """
-        Adds key-value pairs to the music_data dictionary, and saves it in `music_data.json`.
-        
-        Args:
-            guild_id - The guild ID to add the key-value pair to.
-            keys - The key to add or a list of keys to add. Can either be string or a list of strings.
-            values - The value to add or a list of values to add. If keys is a list, values must be a list of the same length.
-            root_key - The root key to add the key-value pair to. Can be None, string or a list of strings.
-                     - If None, the key-value pair is added to the root key = [str(guild_id)].
-                     - If string, the key-value pair is added to the root key = [str(guild_id)][root_key].
-                     - If list of strings, the key-value pair is added to the root key = [str(guild_id)][root_key[0]][root_key[1]]...
-        """
-        def get_nested_dict(root_keys: List[str]):
-            """Helper function to get (or create) the nested dictionary for a list of root keys."""
-            # Ensure guild exists in music data, otherwise create it
-            current = self.music_data.setdefault(str(guild_id), {})
-            # Iterate through root keys to get target dictionary, while creating keys as needed
-            for key in root_keys:
-                current = current.setdefault(key, {})
-            return current
-        
-        # Get traget dictionary with root_keys, while creating keys as needed
-        if root_keys is None:
-            target_dict = self.music_data.setdefault(str(guild_id), {})
-        elif isinstance(root_keys, str):
-            target_dict = get_nested_dict([root_keys])
-        elif isinstance(root_keys, list):
-            target_dict = get_nested_dict(root_keys)
-        
-        # Add key-value pair
-        if isinstance(keys, list):
-            if not isinstance(values, list) or len(keys) != len(values):
-                raise ValueError("If key is a list, value must also be a list of the same length.")
-            target_dict.update(zip(keys, values))
-        else:
-            target_dict[keys] = values
-        music_data_logger.info(f'Music data for guild {guild_id} added/updated.')
-        
-        # Save music data
-        self.save_music_data()
-    
-    def get_guild_music_data(self, guild_id: int):
-        """
-        Get music data for the specified guild.
-        Returns music data for the specified guild in the format of a dictionary.
-        If the guild does not exist, return empty dictionary {}.
-        """
-        return self.music_data.get(str(guild_id), {})
     
     ######################################
     ############# WEBHOOKS  ##############
@@ -702,18 +601,11 @@ class MusicCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild: discord.Guild):
-        """Handle bot leaving a server. Remove guild from: persistent MusicPlayerViews and music data."""
+        """Handle bot leaving a server. Remove guild from: persistent MusicPlayerViews."""
         # Removes guild from persistent MusicPlayerViews
         musicplayerview = self.get_musicplayerview(guild.id)
         if musicplayerview:
             musicplayerview.stop()
-
-        # Removes guild from music data, if it exists
-        if self.music_data.pop(str(guild.id), None):
-            music_data_logger.info(f'Music data for guild {guild.id} removed.')
-
-            # Save the updated music data
-            self.save_music_data()
     
     ######################################
     ######### BOT JOIN & CHECK ###########
