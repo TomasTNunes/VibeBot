@@ -1621,7 +1621,7 @@ class MusicCog(commands.Cog):
         # Verify there are less than 10 playlists
         if len(playlists_dict) >= 10:
             await interaction.response.send_message(embed=error_embed("Maximum number of playlists reached (10).\
-                                                                      \nPlease remove a playlist with `/pl-remove` before adding a new one."), 
+                                                                      \nPlease remove a playlist with `/pl remove` before adding a new one."), 
                                                                       ephemeral=True)
             return
 
@@ -1685,7 +1685,7 @@ class MusicCog(commands.Cog):
 
         # Check if there are playlists
         if not playlists or len(playlists) == 0:
-            await interaction.response.send_message(embed=info_embed('🎵 No playlists have been added yet.\nUse `/pl-add` to add a playlist.'))
+            await interaction.response.send_message(embed=info_embed('🎵 No playlists have been added yet.\nUse `/pl add` to add a playlist.'))
             return
 
         # Create embed
@@ -1756,7 +1756,7 @@ class MusicCog(commands.Cog):
             # Update MusicPLayerView
             await self.update_musicplayerview(interaction.guild.id)
             return
-        await interaction.response.send_message(embed=warning_embed(f'Playlist named `{name}` not found.\nUse `/pl-show` to see list of existing playlists.'),
+        await interaction.response.send_message(embed=warning_embed(f'Playlist named `{name}` not found.\nUse `/pl list` to see list of existing playlists.'),
                                                 ephemeral=True)
 
 async def setup(bot):
