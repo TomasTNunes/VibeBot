@@ -1005,7 +1005,7 @@ class MusicCog(commands.Cog):
     )
     async def set_default_autoplay(self, interaction: discord.Interaction, state: app_commands.Choice[int]):
         """Enable or Disable autoplay by default when the bot joins a voice channel."""
-        # Get guild music data and set default volume
+        # Get guild music data and set default autoplay
         self.add_music_data(
             guild_id=interaction.guild.id,
             keys='default_autoplay',
