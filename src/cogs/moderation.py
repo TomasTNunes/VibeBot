@@ -51,6 +51,27 @@ class Moderation(commands.Cog):
     ############ / COMMANDS ##############
     ######################################
 
+    @app_commands.command(name="clear", description="Clears messages in a channel.", extras={'Category': 'Moderation'})
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 2.0)
+    @app_commands.describe(number="Number of messages to clear.")
+    @app_commands.checks.has_permissions(manage_messages=True)
+    @app_commands.checks.bot_has_permissions(embed_links=True, manage_messages=True, read_message_history=True, view_channel=True)
+    async def clear(self, interaction: discord.Interaction, number: app_commands.Range[int, 1, 100]):
+        """Clears messages in a channel."""
+        # Defer the interaction
+        await interaction.response.defer(ephemeral=True)
+
+        # Delte messages
+        deleted = await interaction.channel.purge(limit=number)
+
+        # Check if any message was deleted
+        if not deleted:
+            return await interaction.followup.send(embed=warning_embed(f'I couldn\'t find any messages to delete.'), ephemeral=True)
+        
+        # Send success message
+        await interaction.followup.send(embed=success_embed(f'Successfully deleted `{len(deleted)}` messages.'), ephemeral=True)
+
     @app_commands.command(name="join-role", description="Automatically assign a role to new members.", extras={'Category': 'Moderation'})
     @app_commands.guild_only()
     @app_commands.checks.cooldown(1, 10.0)
