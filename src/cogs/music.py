@@ -1258,6 +1258,46 @@ class MusicCog(commands.Cog):
         # Send success message
         await interaction.response.send_message(embed=success_embed(f'Rewound by `{time}` seconds.\nNew position: `{int(player.position / 1000)}s`'), delete_after=7)
     
+    @app_commands.command(name='time', description='Get the current time of the playing track.', extras={'Category': 'Music', 'Sub-Category': 'Player'})
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 3.0)
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    async def current_time(self, interaction: discord.Integration):
+        """Get the current time of the playing track."""
+        # Check if command should continue using check_and_join()
+        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=True)
+        if check:
+            await interaction.response.send_message(embed=error_embed(check), ephemeral=True)
+            return
+
+        # Get player for this guild
+        player = self.lavalink.player_manager.get(interaction.guild.id)
+
+        # Get current track
+        track = player.current
+
+        # Check if track is stream
+        if track.is_stream:
+            await interaction.response.send_message(embed=info_embed('This track is a stream: `LIVE`.'), ephemeral=True)
+            return
+
+        # Get track duration
+        track_duration_str = (
+            f'{str(track.duration // 3600000).zfill(2)}:{(track.duration % 3600000) // 60000:02d}:{(track.duration % 60000) // 1000:02d}'
+            if track.duration >= 3600000 else
+            f'{str(track.duration // 60000).zfill(2)}:{track.duration % 60000 // 1000:02d}'
+        )
+
+        # Get track position
+        track_position_str = (
+            f'{str(player.position // 3600000).zfill(2)}:{(player.position % 3600000) // 60000:02d}:{(player.position % 60000) // 1000:02d}'
+            if track.duration >= 3600000 else
+            f'{str(player.position // 60000).zfill(2)}:{player.position % 60000 // 1000:02d}'
+        )
+
+        # Send info message
+        await interaction.response.send_message(embed=info_embed(f'Current track position: `{track_position_str}`/`{track_duration_str}`'))
+    
     ######################################
     ########### QUEUE / COMMANDS #########
     ######################################
