@@ -1,6 +1,51 @@
 # CHANGELOG
 
 
+## v1.6.0 (2025-10-15)
+
+### Bug Fixes
+
+- /pl add emoji argument accepts only one emoji
+  ([`cb52201`](https://github.com/TomasTNunes/VibeBot/commit/cb52201b6f10367bb034910801d18ab8e1a0d78c))
+
+- /pl list non unicode emoji
+  ([`421cd79`](https://github.com/TomasTNunes/VibeBot/commit/421cd791a6d478c8c503e495e76fe8a58087ba77))
+
+- Correct warning messages from /pl-... to /pl ...
+  ([`7bf5c85`](https://github.com/TomasTNunes/VibeBot/commit/7bf5c857ad6a7e8517f0f508fa6e14f1ecde30fb))
+
+- Typos in code
+  ([`b4ad35d`](https://github.com/TomasTNunes/VibeBot/commit/b4ad35dc62a0028a5e4518c72382f1a18a8f5986))
+
+- Update lavalink plugins version
+  ([`ae4d244`](https://github.com/TomasTNunes/VibeBot/commit/ae4d2443f4e82eec4dce51a5172fbd034ddd9ac2))
+
+- Webhook nickname and avatar, along with /setup-fix force recreate
+  ([`273494e`](https://github.com/TomasTNunes/VibeBot/commit/273494ee01b8dfd8d9caf998192e39617e9147f4))
+
+- Wrong argument for followup message
+  ([`89f7bba`](https://github.com/TomasTNunes/VibeBot/commit/89f7bba9c4fd5c0cd9480b7ef6e2d52433ba9be0))
+
+### Features
+
+- /clear command
+  ([`7b81ed9`](https://github.com/TomasTNunes/VibeBot/commit/7b81ed9057fc181b53281c92db4c6424acd38c8c))
+
+- Add /settings command
+  ([`d028b3a`](https://github.com/TomasTNunes/VibeBot/commit/d028b3ab351bacaffbd2331a1789f08be1438b95))
+
+- Add /time command for current track time
+  ([`eb87a23`](https://github.com/TomasTNunes/VibeBot/commit/eb87a239f88d4dc0d661dc1e7d2274bc6d56cd3e))
+
+- Add join role / command
+  ([`f8f550e`](https://github.com/TomasTNunes/VibeBot/commit/f8f550e26fab64e6225ab60e2066c8924b7ba7a4))
+
+### Refactoring
+
+- Add Data Manager
+  ([`44ec1fb`](https://github.com/TomasTNunes/VibeBot/commit/44ec1fb37471702c79897679c9bb6062288c5942))
+
+
 ## v1.5.1 (2025-03-18)
 
 ### Bug Fixes
@@ -15,10 +60,6 @@
 
 - Fix autoplay (implement lastfm api)
   ([`e87f4eb`](https://github.com/TomasTNunes/VibeBot/commit/e87f4eb67b6dc51fb3bff1ecfe7d1c9b73a00893))
-
-* fix: fix autoplay (implement lastfm api)
-
-* docs: add last.fm api key
 
 - Fix permission when creating music channel
   ([`b6db28d`](https://github.com/TomasTNunes/VibeBot/commit/b6db28d9d6aa08006bde486b091c9347c41efebb))
@@ -236,18 +277,6 @@
 
 - Run vibebot in docker ([#2](https://github.com/TomasTNunes/VibeBot/pull/2),
   [`30a1cca`](https://github.com/TomasTNunes/VibeBot/commit/30a1ccad47d6979f7203bb756c28a47043bd58ad))
-
-* chore: rename lavalink docker compose yml
-
-* chore: update logs
-
-* chore: lavalink docker compose identation
-
-* feat: vibebot docker
-
----------
-
-Co-authored-by: TomasTNunes <tomastrindadenunes@outlook.pt>
 
 - **lavalink**: Add applemuisc with default tokens/keys
   ([`d6e1c26`](https://github.com/TomasTNunes/VibeBot/commit/d6e1c26a2f61ea10387bbf88a00d9e53ea78193e))
