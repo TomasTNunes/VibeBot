@@ -11,7 +11,14 @@ from assets.bot.helpview import HelpView
 
 class Bot(commands.Cog):
     def __init__(self, bot: commands.Bot):
+        # Bot Instance
         self.bot = bot
+
+        # Set music_data to Data Manager (loaded in dataloader cog)
+        self.music_data = self.bot.data_manager
+        self.save_music_data = self.music_data.save_music_data
+        self.add_music_data = self.music_data.add_music_data
+        self.get_guild_music_data = self.music_data.get_guild_music_data
 
     ######################################
     ######## AUXILIAR FUNCTIONS ##########
@@ -19,10 +26,11 @@ class Bot(commands.Cog):
 
     async def commands_groups_autocomplete(self, interaction: discord.Interaction, current: str):
         """Auxiliar function to autocomplete function for commands and groups names in inputs of / commands."""
-        return [
+        commands = [
             app_commands.Choice(name=com.qualified_name, value=com.qualified_name)
             for com in self.bot.tree.walk_commands() if current.lower() in com.qualified_name.lower()
         ]
+        return commands[:25]
 
     def get_command_embed(self, command: app_commands.Command, appcommand: app_commands.AppCommand):
         """Create an embed for a command. To be used in /help."""
@@ -287,6 +295,71 @@ class Bot(commands.Cog):
             name="🔗 **API Latency**",
             value=f"`{api_latency}ms` (Shard `{shard_id}`)",
             inline=True
+        )
+
+        # Send embed
+        await interaction.response.send_message(embed=embed)
+    
+    @app_commands.command(name='settings', description='Shows guild\'s VibeBot settings', extras={'Category': 'Bot'})
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 10.0)
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    async def settings(self, interaction: discord.Integration):
+        """Shows guild\'s bot settings."""
+        # Get guild music data
+        guild_music_data = self.get_guild_music_data(interaction.guild.id)
+
+        # Get music text channel
+        music_text_channel = interaction.guild.get_channel(guild_music_data.get('music_text_channel_id'))
+        
+        # Get music message
+        try:
+            music_message = await music_text_channel.fetch_message(guild_music_data.get('music_message_id')) if music_text_channel else None
+        except Exception as e:
+            music_message = None
+        
+        # Create embed
+        embed = Embed(
+            color=discord.Colour.from_rgb(137, 76, 193),
+            title=f'🎶 {interaction.guild.name} - VibeBot Settings'
+        )
+
+        # Add fields with channel/message and settings info
+        embed.add_field(
+            name="📌 **Channels & Messages**",
+            value=(
+                f'🔖 **Music Text Channel:** {music_text_channel.mention if music_text_channel else "*None*"}\n'
+                f'💬 **Music Message:** {music_message.jump_url if music_message else "*None*"}\n'
+            ),
+            inline=False
+        )
+
+        # Add fields with Roles info
+        embed.add_field(
+            name="👥 **Roles**",
+            value=(
+                f'👤 **Join Role:** {interaction.guild.get_role(guild_music_data.get("join_role")).mention if guild_music_data.get("join_role") else "`Disabled`"}\n'
+            ),
+            inline=False
+        )
+
+        embed.add_field(
+            name="⚙️ **Playback Settings**",
+            value=(
+                f'🔊 **Default Volume:** `{guild_music_data.get("default_volume", 50)}%`\n'
+                f'🎵 **Default Autoplay:** `{guild_music_data.get("default_autoplay", "False")}`\n'
+                f'🔁 **Default Loop Queue:** `{guild_music_data.get("default_loop", "False")}`\n'
+            ),
+            inline=False
+        )
+
+        embed.add_field(
+            name="🛠 **Bot Behavior**",
+            value=(
+                f'🔌 **Auto Disconnect:** `{guild_music_data.get("auto_disconnect", "True")}`\n'
+                f'⏳ **Idle Timer:** `{guild_music_data.get("idle_timer", 300)}s`\n'
+            ),
+            inline=False
         )
 
         # Send embed

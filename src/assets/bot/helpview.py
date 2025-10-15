@@ -41,7 +41,7 @@ class HelpView(View):
             for command in self.commands_list
         ]
         command_selector = Select(
-            options=options,
+            options=options[:25],
             placeholder='Help with command:',
             row=0
         )

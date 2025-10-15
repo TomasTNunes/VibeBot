@@ -20,7 +20,7 @@ intents = discord.Intents().all()
 bot = commands.Bot(command_prefix='$', intents=intents, help_command=None)
 
 # Define cogs to load
-cogs = ['bot', 'music']
+cogs = ['dataloader', 'bot', 'moderation', 'music']
 
 ############################################################################################################
 ################################################# EVENTS ###################################################
@@ -47,6 +47,7 @@ async def on_ready():
             logger.info(f'Cog `{cog}` loaded successfully')
         except Exception as e:
             logger.error(f'Failed to load cog \'{cog}\': {e}')
+            return
     # Log loades cogs
     logger.info(f'Loaded cogs: {list(bot.cogs.keys())}')
 

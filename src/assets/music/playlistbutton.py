@@ -19,9 +19,6 @@ class PlaylistButton(discord.ui.Button):
 
         NOTE: This  buttons is to be used in MusicPLayerView, hence join_and_check() will be ran there as interaction_check.
         """
-        # Defer the interaction
-        await interaction.response.defer()
-
         # Get guild player
         player = self.view.cog.lavalink.player_manager.get(interaction.guild.id)
 
@@ -36,8 +33,11 @@ class PlaylistButton(discord.ui.Button):
 
         # If add_to_queue_check is not None, something went wrong
         if add_to_queue_check:
-            await interaction.followup.send(embed=error_embed(add_to_queue_check), delete_after=15)
+            await interaction.response.send_message(embed=error_embed(add_to_queue_check), delete_after=15)
             return
+        
+        # Defer the interaction
+        await interaction.response.defer()
 
         # Shuffle rest of queue if shuffle is True
         if self.shuffle:

@@ -5,11 +5,10 @@ from discord.ext import commands
 import lavalink
 from lavalink.server import LoadType
 from lavalink.events import TrackStartEvent, QueueEndEvent, NodeConnectedEvent, TrackEndEvent
-import json
 import asyncio
 import re
 from typing import Union, List, Any, Optional
-from assets.logger.logger import music_logger as logger, music_data_logger, debug_logger
+from assets.logger.logger import music_logger as logger, debug_logger
 from assets.music.lavalinkvoiceclient import LavalinkVoiceClient
 from assets.music.musicplayerview import MusicPlayerView
 from assets.music.queuebuttonsview import QueueButtonsView
@@ -40,14 +39,11 @@ class MusicCog(commands.Cog):
         self.bot.lastfm = LastFMClient(os.getenv('LASTFM_API_KEY'))
         self.lastfm = self.bot.lastfm
 
-        # Path to `music_data.json`
-        self.music_data_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),'../assets/data/music_data.json')
-
-        # Load music data from `music_data.json`
-        self.music_data = self.load_music_data()
-
-        # Cleanup music data for guilds where the bot is no longer in
-        self.cleanup_music_data()
+        # Set music_data to Data Manager (loaded in dataloader cog)
+        self.music_data = self.bot.data_manager
+        self.save_music_data = self.music_data.save_music_data
+        self.add_music_data = self.music_data.add_music_data
+        self.get_guild_music_data = self.music_data.get_guild_music_data
 
     ######################################
     ############# COG LOAD ###############
@@ -141,103 +137,6 @@ class MusicCog(commands.Cog):
                 logger.error(f'Failed to close Lavalink Client: {e}')
     
     ######################################
-    ############ MUSIC DATA ##############
-    ######################################
-
-    def load_music_data(self):
-        """Load music data from the `music_data.json` file if it exists, otherwise return and save an empty dictionary."""
-        try:
-            with open(self.music_data_path, 'r', encoding="utf-8") as file:
-                data = json.load(file)
-                logger.info(f'Music data loaded from `music_data.json`.')
-                music_data_logger.info(f'Music data loaded from `music_data.json`.')
-                return data
-        except FileNotFoundError:
-            logger.warning(f'`music_data.json` not found, setting `self.music_data` to an empty dictionary.')
-            music_data_logger.warning(f'`music_data.json` not found, setting `self.music_data` to an empty dictionary.')
-            return {}
-        except Exception as e:
-            logger.error(f'Failed to load music data: {e}')
-            music_data_logger.error(f'Failed to load music data: {e}')
-            raise # Re-raise the exception to prevent the cog from loading
-    
-    def save_music_data(self):
-        """Save music data to the `music_data.json` file."""
-        # Save new self.music_data
-        try:
-            with open(self.music_data_path, 'w', encoding="utf-8") as file:
-                json.dump(self.music_data, file, indent=4, ensure_ascii=False)
-                music_data_logger.info(f'Music data saved to `music_data.json`.')
-        except Exception as e:
-            music_data_logger.error(f'Failed to save music data: {e}')
-    
-    def cleanup_music_data(self):
-        """Remove music data for guilds where the bot is no longer in."""
-        # Get a list of guild IDs where the bot is currently in
-        guild_ids = [str(guild.id) for guild in self.bot.guilds]
-
-        # Remove music data for guilds where the bot is no longer in
-        for guild_id in list(self.music_data.keys()):
-            if guild_id not in guild_ids:
-                self.music_data.pop(guild_id, None)
-                music_data_logger.info(f'Music data for guild {guild_id} removed.')
-        logger.info(f'Music data cleaned for guilds where the bot is no longer in.')
-        music_data_logger.info(f'Music data cleaned for guilds where the bot is no longer in.')
-        
-        # Save the updated music data
-        self.save_music_data()
-    
-    def add_music_data(self, guild_id: int, keys: Union[str, List[str]], values: Union[Any, List[Any]], root_keys: Union[str, List[str]] = None):
-        """
-        Adds key-value pairs to the music_data dictionary, and saves it in `music_data.json`.
-        
-        Args:
-            guild_id - The guild ID to add the key-value pair to.
-            keys - The key to add or a list of keys to add. Can either be string or a list of strings.
-            values - The value to add or a list of values to add. If keys is a list, values must be a list of the same length.
-            root_key - The root key to add the key-value pair to. Can be None, string or a list of strings.
-                     - If None, the key-value pair is added to the root key = [str(guild_id)].
-                     - If string, the key-value pair is added to the root key = [str(guild_id)][root_key].
-                     - If list of strings, the key-value pair is added to the root key = [str(guild_id)][root_key[0]][root_key[1]]...
-        """
-        def get_nested_dict(root_keys: List[str]):
-            """Helper function to get (or create) the nested dictionary for a list of root keys."""
-            # Ensure guild exists in music data, otherwise create it
-            current = self.music_data.setdefault(str(guild_id), {})
-            # Iterate through root keys to get target dictionary, while creating keys as needed
-            for key in root_keys:
-                current = current.setdefault(key, {})
-            return current
-        
-        # Get traget dictionary with root_keys, while creating keys as needed
-        if root_keys is None:
-            target_dict = self.music_data.setdefault(str(guild_id), {})
-        elif isinstance(root_keys, str):
-            target_dict = get_nested_dict([root_keys])
-        elif isinstance(root_keys, list):
-            target_dict = get_nested_dict(root_keys)
-        
-        # Add key-value pair
-        if isinstance(keys, list):
-            if not isinstance(values, list) or len(keys) != len(values):
-                raise ValueError("If key is a list, value must also be a list of the same length.")
-            target_dict.update(zip(keys, values))
-        else:
-            target_dict[keys] = values
-        music_data_logger.info(f'Music data for guild {guild_id} added/updated.')
-        
-        # Save music data
-        self.save_music_data()
-    
-    def get_guild_music_data(self, guild_id: int):
-        """
-        Get music data for the specified guild.
-        Returns music data for the specified guild in the format of a dictionary.
-        If the guild does not exist, return empty dictionary {}.
-        """
-        return self.music_data.get(str(guild_id), {})
-    
-    ######################################
     ############# WEBHOOKS  ##############
     ######################################
 
@@ -268,7 +167,7 @@ class MusicCog(commands.Cog):
                 return None
 
         # Create webhook
-        webhook = await music_text_channel.create_webhook(name=self.bot.user.name, 
+        webhook = await music_text_channel.create_webhook(name=f'{self.bot.user.name} Player', 
                                                           avatar=await self.bot.user.display_avatar.read())
 
         # Store webhook in `music_data.json`
@@ -309,8 +208,12 @@ class MusicCog(commands.Cog):
         if not musicplayerview:
             musicplayerview = MusicPlayerView(self.bot, self, webhook.guild)
 
+        # Get bot nick name in guild
+        bot_guild_user = webhook.guild.get_member(self.bot.user.id)
+        bot_nick = bot_guild_user.display_name if bot_guild_user else self.bot.user.name
+
         # Send the music message (this adds view to bots persistent views automatically)
-        music_message = await webhook.send(message_text, embed=embed, view=musicplayerview, wait=True)
+        music_message = await webhook.send(message_text, embed=embed, view=musicplayerview, wait=True, username=bot_nick, avatar_url=self.bot.user.display_avatar.url)
 
         # Add guild music data to music data and save in `music_data.json`
         self.add_music_data(
@@ -451,7 +354,7 @@ class MusicCog(commands.Cog):
 
         logger.info('Music text channels cleaned up, music messages set to default and MusicPlayerViews.')
     
-    async def cleanup_music_channel(self, guild_music_data: dict):
+    async def cleanup_music_channel(self, guild_music_data: dict, force_recreate: bool = False):
         """
         For given guild:
         Remove messages from music text channels that are not the music message and create missing music messages.
@@ -472,8 +375,11 @@ class MusicCog(commands.Cog):
         # get music message from ID
         music_message_id = guild_music_data.get('music_message_id')
 
-        # delete all messages in music text channel that are not the music message
-        await webhook.channel.purge(check=lambda m: m.id != music_message_id, bulk=True)
+        # delete all messages in music text channel that are not the music message, unless , force_recreate is True
+        if not force_recreate:
+            await webhook.channel.purge(check=lambda m: m.id != music_message_id, bulk=True)
+        else:
+            await webhook.channel.purge(bulk=True)
 
         # Get music message
         try:
@@ -592,10 +498,6 @@ class MusicCog(commands.Cog):
         # if voice client exists and is of type LavalinkVoiceClient, start idle timer task
         if voice_client and isinstance(voice_client, LavalinkVoiceClient):
             await voice_client.start_idle_timer()    
-        
-        # if autoplay is on, add recommended track
-        # Create query based only on previous track. Only if this track from spotify
-        # No need to update embed as add_to_queue will update it, unless add_to_queue fails.
 
         # Check if autoplay is on
         if event.player.fetch(key='autoplay', default=False):
@@ -699,18 +601,11 @@ class MusicCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild: discord.Guild):
-        """Handle bot leaving a server. Remove guild from: persistent MusicPlayerViews and music data."""
+        """Handle bot leaving a server. Remove guild from: persistent MusicPlayerViews."""
         # Removes guild from persistent MusicPlayerViews
         musicplayerview = self.get_musicplayerview(guild.id)
         if musicplayerview:
             musicplayerview.stop()
-
-        # Removes guild from music data, if it exists
-        if self.music_data.pop(str(guild.id), None):
-            music_data_logger.info(f'Music data for guild {guild.id} removed.')
-
-            # Save the updated music data
-            self.save_music_data()
     
     ######################################
     ######### BOT JOIN & CHECK ###########
@@ -1071,7 +966,7 @@ class MusicCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         # Clean music text channel
-        await self.cleanup_music_channel(guild_music_data)
+        await self.cleanup_music_channel(guild_music_data, force_recreate=True)
 
         # Success message
         await interaction.followup.send(embed=success_embed(f'Music text channel fixed.'))
@@ -1110,7 +1005,7 @@ class MusicCog(commands.Cog):
     )
     async def set_default_autoplay(self, interaction: discord.Interaction, state: app_commands.Choice[int]):
         """Enable or Disable autoplay by default when the bot joins a voice channel."""
-        # Get guild music data and set default volume
+        # Get guild music data and set default autoplay
         self.add_music_data(
             guild_id=interaction.guild.id,
             keys='default_autoplay',
@@ -1188,11 +1083,11 @@ class MusicCog(commands.Cog):
         
         # Send info message
         if self.get_guild_music_data(interaction.guild.id).get('auto_disconnect', True):
-            await interaction.response.send_message(embed=info_embed(f'Auto-disconnect `enabled`.\nIdle timer: `{self.get_guild_music_data(interaction.guild.id).get('idle_timer', 300)}s`'))
+            await interaction.response.send_message(embed=info_embed(f"Auto-disconnect `enabled`.\nIdle timer: `{self.get_guild_music_data(interaction.guild.id).get('idle_timer', 300)}s`"))
         else:
             await interaction.response.send_message(embed=info_embed(f'Auto-disconnect `disabled`.'))
     
-    @app_commands.command(name='settings', description='Shows guild\'s music player settings', extras={'Category': 'Music', 'Sub-Category': 'Settings'})
+    @app_commands.command(name='music-settings', description='Shows guild\'s music player settings', extras={'Category': 'Music', 'Sub-Category': 'Settings'})
     @app_commands.guild_only()
     @app_commands.checks.cooldown(1, 10.0)
     @app_commands.checks.bot_has_permissions(embed_links=True)
@@ -1362,6 +1257,46 @@ class MusicCog(commands.Cog):
 
         # Send success message
         await interaction.response.send_message(embed=success_embed(f'Rewound by `{time}` seconds.\nNew position: `{int(player.position / 1000)}s`'), delete_after=7)
+    
+    @app_commands.command(name='time', description='Get the current time of the playing track.', extras={'Category': 'Music', 'Sub-Category': 'Player'})
+    @app_commands.guild_only()
+    @app_commands.checks.cooldown(1, 3.0)
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    async def current_time(self, interaction: discord.Integration):
+        """Get the current time of the playing track."""
+        # Check if command should continue using check_and_join()
+        check = await self.check_and_join(interaction.user, interaction.guild, should_connect=False, should_bePlaying=True)
+        if check:
+            await interaction.response.send_message(embed=error_embed(check), ephemeral=True)
+            return
+
+        # Get player for this guild
+        player = self.lavalink.player_manager.get(interaction.guild.id)
+
+        # Get current track
+        track = player.current
+
+        # Check if track is stream
+        if track.is_stream:
+            await interaction.response.send_message(embed=info_embed('This track is a stream: `LIVE`.'), ephemeral=True)
+            return
+
+        # Get track duration
+        track_duration_str = (
+            f'{str(track.duration // 3600000).zfill(2)}:{(track.duration % 3600000) // 60000:02d}:{(track.duration % 60000) // 1000:02d}'
+            if track.duration >= 3600000 else
+            f'{str(track.duration // 60000).zfill(2)}:{track.duration % 60000 // 1000:02d}'
+        )
+
+        # Get track position
+        track_position_str = (
+            f'{str(player.position // 3600000).zfill(2)}:{(player.position % 3600000) // 60000:02d}:{(player.position % 60000) // 1000:02d}'
+            if track.duration >= 3600000 else
+            f'{str(player.position // 60000).zfill(2)}:{player.position % 60000 // 1000:02d}'
+        )
+
+        # Send info message
+        await interaction.response.send_message(embed=info_embed(f'Current track position: `{track_position_str}`/`{track_duration_str}`'))
     
     ######################################
     ########### QUEUE / COMMANDS #########
@@ -1611,6 +1546,44 @@ class MusicCog(commands.Cog):
         if button_name and not button_name.isascii():
             await interaction.response.send_message(embed=error_embed("Button name must contain only ASCII characters."), ephemeral=True)
             return
+
+        # Verify if only one emoji was given, in case any was given at all
+        if emoji:
+            # Regex to match a single Unicode emoji
+            unicode_emoji_regex = re.compile(
+                r"^(?:"
+                r"[\U0001F1E6-\U0001F1FF]{2}|"  # Flags (🇺🇸, 🇪🇸, etc.)
+                r"[\U0001F300-\U0001F5FF]|"  # Symbols & pictographs
+                r"[\U0001F600-\U0001F64F]|"  # Emoticons (😀, 😂, etc.)
+                r"[\U0001F680-\U0001F6FF]|"  # Transport & map symbols
+                r"[\U0001F700-\U0001F77F]|"  # Alchemical symbols
+                r"[\U0001F780-\U0001F7FF]|"  # Geometric shapes
+                r"[\U0001F800-\U0001F8FF]|"  # Supplemental symbols
+                r"[\U0001F900-\U0001F9FF]|"  # Additional emoticons
+                r"[\U0001FA70-\U0001FAFF]|"  # More symbols
+                r"[\U00002600-\U000026FF]|"  # Miscellaneous symbols
+                r"[\U00002700-\U000027BF]|"  # Dingbats
+                r"[\U00002B50-\U00002B59]"  # Stars and symbols
+                r")(?:\u200D(?:"
+                r"[\U0001F300-\U0001F5FF]|"  # Allowing ZWJ sequences
+                r"[\U0001F600-\U0001F64F]|"
+                r"[\U0001F680-\U0001F6FF]|"
+                r"[\U0001F700-\U0001F77F]|"
+                r"[\U0001F780-\U0001F7FF]|"
+                r"[\U0001F800-\U0001F8FF]|"
+                r"[\U0001F900-\U0001F9FF]|"
+                r"[\U0001FA70-\U0001FAFF]"
+                r"))*$"
+            )
+            
+            # Check if it's a valid custom emoji (formatted as `<:name:id>`)
+            custom_emoji_match = re.fullmatch(r"<:\w+:\d+>", emoji)
+
+            # Check if it's exactly one Unicode emoji
+            unicode_emoji_match = bool(unicode_emoji_regex.fullmatch(emoji))
+
+            if not custom_emoji_match and not unicode_emoji_match:
+                return await interaction.response.send_message(embed=error_embed("Please provide a single valid emoji (Unicode or custom)."), ephemeral=True)
         
         # Get Playlists dict from guild music data
         playlists_dict = self.get_guild_music_data(interaction.guild.id).get('playlists', {})
@@ -1618,7 +1591,7 @@ class MusicCog(commands.Cog):
         # Verify there are less than 10 playlists
         if len(playlists_dict) >= 10:
             await interaction.response.send_message(embed=error_embed("Maximum number of playlists reached (10).\
-                                                                      \nPlease remove a playlist with `/pl-remove` before adding a new one."), 
+                                                                      \nPlease remove a playlist with `/pl remove` before adding a new one."), 
                                                                       ephemeral=True)
             return
 
@@ -1682,7 +1655,7 @@ class MusicCog(commands.Cog):
 
         # Check if there are playlists
         if not playlists or len(playlists) == 0:
-            await interaction.response.send_message(embed=info_embed('🎵 No playlists have been added yet.\nUse `/pl-add` to add a playlist.'))
+            await interaction.response.send_message(embed=info_embed('🎵 No playlists have been added yet.\nUse `/pl add` to add a playlist.'))
             return
 
         # Create embed
@@ -1706,6 +1679,7 @@ class MusicCog(commands.Cog):
 
             # Get button label
             button_label = playlist.get('button_name', '')
+            button_label = f'`{button_label}`' if button_label else ''
 
             # Combine emoji and button label (ensure no extra spaces)
             button_display = f"{emoji} {button_label}".strip()
@@ -1715,7 +1689,7 @@ class MusicCog(commands.Cog):
                 name='',
                 value=(
                     f"**[{i+1}]** - 🎶  **[{pl_name}]({playlist['url']})**  🎶\n"
-                    f"*Button:* `{button_display}`\n"
+                    f"*Button:* {button_display}\n"
                     f"*Shuffle:* `{playlist.get('shuffle', False)}`"
                 ),
                 inline=False
@@ -1752,7 +1726,7 @@ class MusicCog(commands.Cog):
             # Update MusicPLayerView
             await self.update_musicplayerview(interaction.guild.id)
             return
-        await interaction.response.send_message(embed=warning_embed(f'Playlist named `{name}` not found.\nUse `/pl-show` to see list of existing playlists.'),
+        await interaction.response.send_message(embed=warning_embed(f'Playlist named `{name}` not found.\nUse `/pl list` to see list of existing playlists.'),
                                                 ephemeral=True)
 
 async def setup(bot):

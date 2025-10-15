@@ -47,7 +47,7 @@ main_logger.propagate = True # use Root Handlers
 music_logger = logging.getLogger('vibebot.music')
 music_logger.propagate = True # use Root Handlers
 
-# Create a logger for music data in cogs.music.py
+# Create a logger for data in cogs.music.py
 music_data_logger = logging.getLogger('vibebot.music.music_data')
 music_data_logger.propagate = False # don't use Root Handlers
 music_data_log_path = os.path.join(log_directory_path, 'music_data.log')
