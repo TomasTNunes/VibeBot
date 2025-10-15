@@ -1083,7 +1083,7 @@ class MusicCog(commands.Cog):
         
         # Send info message
         if self.get_guild_music_data(interaction.guild.id).get('auto_disconnect', True):
-            await interaction.response.send_message(embed=info_embed(f'Auto-disconnect `enabled`.\nIdle timer: `{self.get_guild_music_data(interaction.guild.id).get('idle_timer', 300)}s`'))
+            await interaction.response.send_message(embed=info_embed(f"Auto-disconnect `enabled`.\nIdle timer: `{self.get_guild_music_data(interaction.guild.id).get('idle_timer', 300)}s`"))
         else:
             await interaction.response.send_message(embed=info_embed(f'Auto-disconnect `disabled`.'))
     

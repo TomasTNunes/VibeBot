@@ -26,10 +26,11 @@ class Bot(commands.Cog):
 
     async def commands_groups_autocomplete(self, interaction: discord.Interaction, current: str):
         """Auxiliar function to autocomplete function for commands and groups names in inputs of / commands."""
-        return [
+        commands = [
             app_commands.Choice(name=com.qualified_name, value=com.qualified_name)
             for com in self.bot.tree.walk_commands() if current.lower() in com.qualified_name.lower()
         ]
+        return commands[:25]
 
     def get_command_embed(self, command: app_commands.Command, appcommand: app_commands.AppCommand):
         """Create an embed for a command. To be used in /help."""
