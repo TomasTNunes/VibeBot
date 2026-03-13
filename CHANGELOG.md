@@ -1,7 +1,28 @@
 # CHANGELOG
 
 
+## v1.6.1 (2026-03-13)
+
+
 ## v1.6.0 (2025-10-15)
+
+
+## v1.5.1 (2025-03-18)
+
+
+## v1.5.0 (2025-03-18)
+
+
+## v1.4.0 (2025-03-12)
+
+
+## v1.3.0 (2025-03-10)
+
+
+## v1.2.1 (2025-03-06)
+
+
+## v1.2.0 (2025-03-06)
 
 ### Bug Fixes
 
@@ -11,11 +32,38 @@
 - /pl list non unicode emoji
   ([`421cd79`](https://github.com/TomasTNunes/VibeBot/commit/421cd791a6d478c8c503e495e76fe8a58087ba77))
 
+- Add missing python requirements
+  ([`2571ecc`](https://github.com/TomasTNunes/VibeBot/commit/2571ecc42b3aa401eec88bed4158cede64d51aff))
+
+- Allow all available emoji buttons
+  ([`2d3068c`](https://github.com/TomasTNunes/VibeBot/commit/2d3068cf1eaf4702ef1412e63db0727e43565c71))
+
 - Correct warning messages from /pl-... to /pl ...
   ([`7bf5c85`](https://github.com/TomasTNunes/VibeBot/commit/7bf5c857ad6a7e8517f0f508fa6e14f1ecde30fb))
 
+- Docker compose lavalink network set external
+  ([`108a8f6`](https://github.com/TomasTNunes/VibeBot/commit/108a8f669a187d8d072dccfa021afd81562f9eb6))
+
+- Fix autoplay (implement lastfm api)
+  ([`e87f4eb`](https://github.com/TomasTNunes/VibeBot/commit/e87f4eb67b6dc51fb3bff1ecfe7d1c9b73a00893))
+
+- Fix docker entrypoint
+  ([`8745690`](https://github.com/TomasTNunes/VibeBot/commit/87456907db406909fc58b46ed8598bbfe761fe16))
+
+- Fix permission when creating music channel
+  ([`b6db28d`](https://github.com/TomasTNunes/VibeBot/commit/b6db28d9d6aa08006bde486b091c9347c41efebb))
+
+- Handle CommandNotFound errors gracefully
+  ([`0b65a50`](https://github.com/TomasTNunes/VibeBot/commit/0b65a504b394b26afc1295556335b615e8e0eb7d))
+
+- Show queue time beyond next 15 tracks
+  ([`824e003`](https://github.com/TomasTNunes/VibeBot/commit/824e003aaf7113048c2eca422899c2fab6304f64))
+
 - Typos in code
   ([`b4ad35d`](https://github.com/TomasTNunes/VibeBot/commit/b4ad35dc62a0028a5e4518c72382f1a18a8f5986))
+
+- Update dependencies versions
+  ([`dd9a649`](https://github.com/TomasTNunes/VibeBot/commit/dd9a64901b115f781a8eddec397c0c8d0bcd75f8))
 
 - Update lavalink plugins version
   ([`ae4d244`](https://github.com/TomasTNunes/VibeBot/commit/ae4d2443f4e82eec4dce51a5172fbd034ddd9ac2))
@@ -26,44 +74,6 @@
 - Wrong argument for followup message
   ([`89f7bba`](https://github.com/TomasTNunes/VibeBot/commit/89f7bba9c4fd5c0cd9480b7ef6e2d52433ba9be0))
 
-### Features
-
-- /clear command
-  ([`7b81ed9`](https://github.com/TomasTNunes/VibeBot/commit/7b81ed9057fc181b53281c92db4c6424acd38c8c))
-
-- Add /settings command
-  ([`d028b3a`](https://github.com/TomasTNunes/VibeBot/commit/d028b3ab351bacaffbd2331a1789f08be1438b95))
-
-- Add /time command for current track time
-  ([`eb87a23`](https://github.com/TomasTNunes/VibeBot/commit/eb87a239f88d4dc0d661dc1e7d2274bc6d56cd3e))
-
-- Add join role / command
-  ([`f8f550e`](https://github.com/TomasTNunes/VibeBot/commit/f8f550e26fab64e6225ab60e2066c8924b7ba7a4))
-
-### Refactoring
-
-- Add Data Manager
-  ([`44ec1fb`](https://github.com/TomasTNunes/VibeBot/commit/44ec1fb37471702c79897679c9bb6062288c5942))
-
-
-## v1.5.1 (2025-03-18)
-
-### Bug Fixes
-
-- Add missing python requirements
-  ([`2571ecc`](https://github.com/TomasTNunes/VibeBot/commit/2571ecc42b3aa401eec88bed4158cede64d51aff))
-
-
-## v1.5.0 (2025-03-18)
-
-### Bug Fixes
-
-- Fix autoplay (implement lastfm api)
-  ([`e87f4eb`](https://github.com/TomasTNunes/VibeBot/commit/e87f4eb67b6dc51fb3bff1ecfe7d1c9b73a00893))
-
-- Fix permission when creating music channel
-  ([`b6db28d`](https://github.com/TomasTNunes/VibeBot/commit/b6db28d9d6aa08006bde486b091c9347c41efebb))
-
 ### Code Style
 
 - Add command group for playlists
@@ -72,23 +82,8 @@
 - Add topic for music text channel
   ([`0728840`](https://github.com/TomasTNunes/VibeBot/commit/07288404b72067c4ad0eef819df260d14ce8f534))
 
-### Features
-
-- Add /help <command> command
-  ([`2a39354`](https://github.com/TomasTNunes/VibeBot/commit/2a393549e04ff5e7dbe5a06e55f2ac0701701199))
-
-- Add /help command
-  ([`767224d`](https://github.com/TomasTNunes/VibeBot/commit/767224d024ef053b34bb270a296f659f1b9ec242))
-
-### Refactoring
-
-- Move bot general commands to bot cog
-  ([`5919590`](https://github.com/TomasTNunes/VibeBot/commit/5919590bbf1a012580433b14ea496837ef75fc8d))
-
-
-## v1.4.0 (2025-03-12)
-
-### Code Style
+- Change /pl-show layout
+  ([`cd7d8d5`](https://github.com/TomasTNunes/VibeBot/commit/cd7d8d5c3cde08da55f382ab54550673626aa0d2))
 
 - Improve /invite commadn style
   ([`67b400a`](https://github.com/TomasTNunes/VibeBot/commit/67b400a41128da83cb625ead89561d7b835d51f8))
@@ -101,46 +96,35 @@
 
 ### Features
 
-- Add /queue command
-  ([`492baa9`](https://github.com/TomasTNunes/VibeBot/commit/492baa9c2c7cb8d40d87473e7cc679478fe1d1ec))
-
-- Add settings / command
-  ([`c70f498`](https://github.com/TomasTNunes/VibeBot/commit/c70f4985c48567da7e1b3bbd6ef6b827d603b286))
-
-### Performance Improvements
-
-- Huge performance upgrade by using webhooks
-  ([`08116e8`](https://github.com/TomasTNunes/VibeBot/commit/08116e8aee82f23685b0988834b3ffb0e6cfed26))
-
-- Run delete message in parallel with add to queue for increased performance
-  ([`c6adba7`](https://github.com/TomasTNunes/VibeBot/commit/c6adba7fd7c1960f574857665428aad35205b697))
-
-
-## v1.3.0 (2025-03-10)
-
-### Bug Fixes
-
-- Allow all available emoji buttons
-  ([`2d3068c`](https://github.com/TomasTNunes/VibeBot/commit/2d3068cf1eaf4702ef1412e63db0727e43565c71))
-
-- Handle CommandNotFound errors gracefully
-  ([`0b65a50`](https://github.com/TomasTNunes/VibeBot/commit/0b65a504b394b26afc1295556335b615e8e0eb7d))
-
-- Show queue time beyond next 15 tracks
-  ([`824e003`](https://github.com/TomasTNunes/VibeBot/commit/824e003aaf7113048c2eca422899c2fab6304f64))
-
-### Code Style
-
-- Change /pl-show layout
-  ([`cd7d8d5`](https://github.com/TomasTNunes/VibeBot/commit/cd7d8d5c3cde08da55f382ab54550673626aa0d2))
-
-### Features
+- /clear command
+  ([`7b81ed9`](https://github.com/TomasTNunes/VibeBot/commit/7b81ed9057fc181b53281c92db4c6424acd38c8c))
 
 - Add / invite button
   ([`1eb6fed`](https://github.com/TomasTNunes/VibeBot/commit/1eb6fed55565bbdea4d279b1b0d8e80f479682b2))
 
+- Add /help <command> command
+  ([`2a39354`](https://github.com/TomasTNunes/VibeBot/commit/2a393549e04ff5e7dbe5a06e55f2ac0701701199))
+
+- Add /help command
+  ([`767224d`](https://github.com/TomasTNunes/VibeBot/commit/767224d024ef053b34bb270a296f659f1b9ec242))
+
+- Add /queue command
+  ([`492baa9`](https://github.com/TomasTNunes/VibeBot/commit/492baa9c2c7cb8d40d87473e7cc679478fe1d1ec))
+
+- Add /settings command
+  ([`d028b3a`](https://github.com/TomasTNunes/VibeBot/commit/d028b3ab351bacaffbd2331a1789f08be1438b95))
+
+- Add /time command for current track time
+  ([`eb87a23`](https://github.com/TomasTNunes/VibeBot/commit/eb87a239f88d4dc0d661dc1e7d2274bc6d56cd3e))
+
+- Add arm64 support for docker
+  ([`2895e44`](https://github.com/TomasTNunes/VibeBot/commit/2895e44cae8896a049463d1b10339d94c6897e33))
+
 - Add auto-disconnect / command
   ([`e6fe783`](https://github.com/TomasTNunes/VibeBot/commit/e6fe7833b6a209cef5749e61b452d1956a133f39))
+
+- Add join role / command
+  ([`f8f550e`](https://github.com/TomasTNunes/VibeBot/commit/f8f550e26fab64e6225ab60e2066c8924b7ba7a4))
 
 - Add jump to track in queue / command
   ([`51144be`](https://github.com/TomasTNunes/VibeBot/commit/51144be174b508a9a283db5f442f73f505f3e2dc))
@@ -157,6 +141,9 @@
 - Add seek track time / command
   ([`ff00717`](https://github.com/TomasTNunes/VibeBot/commit/ff0071717df2874a4a8d807e997d812f03212669))
 
+- Add settings / command
+  ([`c70f498`](https://github.com/TomasTNunes/VibeBot/commit/c70f4985c48567da7e1b3bbd6ef6b827d603b286))
+
 - Add setup-fix / command
   ([`ee5b5f8`](https://github.com/TomasTNunes/VibeBot/commit/ee5b5f8860dfe03365f209f52d19a06260f1569b))
 
@@ -169,37 +156,30 @@
 - Fast forward and rewind / commands
   ([`66f9ac8`](https://github.com/TomasTNunes/VibeBot/commit/66f9ac83937ccbe8d0db0b7a78f4acc4187dcb89))
 
+### Performance Improvements
+
+- Huge performance upgrade by using webhooks
+  ([`08116e8`](https://github.com/TomasTNunes/VibeBot/commit/08116e8aee82f23685b0988834b3ffb0e6cfed26))
+
+- Run delete message in parallel with add to queue for increased performance
+  ([`c6adba7`](https://github.com/TomasTNunes/VibeBot/commit/c6adba7fd7c1960f574857665428aad35205b697))
+
 ### Refactoring
 
 - Add comment on MusicPlayerView for toDO
   ([`ec6e5ca`](https://github.com/TomasTNunes/VibeBot/commit/ec6e5ca862a50dc79a4b7aa0bbe1b9b8f83c5788))
 
+- Add Data Manager
+  ([`44ec1fb`](https://github.com/TomasTNunes/VibeBot/commit/44ec1fb37471702c79897679c9bb6062288c5942))
+
 - Fix typo in comment
   ([`63c49c0`](https://github.com/TomasTNunes/VibeBot/commit/63c49c0dc8a4428c3b4c81bfcb3f070b17d87651))
 
+- Move bot general commands to bot cog
+  ([`5919590`](https://github.com/TomasTNunes/VibeBot/commit/5919590bbf1a012580433b14ea496837ef75fc8d))
+
 - Put bot invite link as environment variable
   ([`58b825d`](https://github.com/TomasTNunes/VibeBot/commit/58b825da516e686ca3fcd9960b4a37eac7439b20))
-
-
-## v1.2.1 (2025-03-06)
-
-### Bug Fixes
-
-- Fix docker entrypoint
-  ([`8745690`](https://github.com/TomasTNunes/VibeBot/commit/87456907db406909fc58b46ed8598bbfe761fe16))
-
-
-## v1.2.0 (2025-03-06)
-
-### Bug Fixes
-
-- Docker compose lavalink network set external
-  ([`108a8f6`](https://github.com/TomasTNunes/VibeBot/commit/108a8f669a187d8d072dccfa021afd81562f9eb6))
-
-### Features
-
-- Add arm64 support for docker
-  ([`2895e44`](https://github.com/TomasTNunes/VibeBot/commit/2895e44cae8896a049463d1b10339d94c6897e33))
 
 
 ## v1.1.0 (2025-03-06)
