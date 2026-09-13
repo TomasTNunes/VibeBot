@@ -84,10 +84,13 @@ plugins:
       - WEBEMBEDDED
       - ANDROID_VR
       - TV
-      - TVHTML5EMBEDDED
+      - TVHTML5_SIMPLY
     pot:
-      token: "MpQBvuuiCM-pIs--05foJNMGknCoTfnF2hhYu6kUxNaX7uf09T8fjBnw0QUVpSq__DgD16XJZU16GlXKkJznGAuHaJm_brv2v_ICfbFiYAzfa0q-O7_iSk1SOI-2IJq9TyeFwxUlmQ7aT6LlNfV9W-ALGhxyG0woOPmIx_HOr2PfxS2h3j-xzqaLpXjCNZe46gOV-0e2FQ=="
-      visitorData: "CgtCNzU2ZjlyZDMwOCihtPS8BjIiCgJOTBIcEhgSFhMLFBUWFwwYGRobHB0eHw4PIBAREiEgUQ%3D%3D"
+      token: "Igh1nXWcHzuhWQ=="
+      visitorData: "CgtnWkczdmtDRWpoRSjDqZvVBjIoCgJOTBIiEh4SHAsMDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicgLWLfAgrcAjIxLllUPUFNU0QwVHctbTREdTFKN3Y4WlY1dnhkMy1TSHZDdHFnM1lubjlqNlAwd2p2OXhISF9LS04zR2JKMllQQ1ZKNGdRdm5sQ0tIYnJtU2QxdFZReXVMWkZ0dTZTb3Q3WTVacVkxZjR6WnBzc09rblM1QVE1cW5FcjFHeV9OaDEtdVNrbzJFWThMYmlxWGpRa1dBeWIxQm1fdW43LTk4ZkpDdHlNOXJvclVIMzFhZFBndlIwWVVhbWs1Q0h6VFNVODRpVVozbUQ0YU81OHY1Wkt0a3BKQl9GSmJ2UWRWSTBoZ2xHdmdkODRfdWhMMGZCbWplbHpfRXRiM1pfV0Q0SGs3ZFdnUnVsVXppMGVZX0xaVUxBTGJCZWYzQ2t3d0FHMUhmZmtSRXFrd0V6ZGVFNEFnQkVORDRvVGFRX1JPWmR4b2FVRzYyeW1LeFltclVZZUNTNkE3S1VLdw%3D%3D"
+    remoteCipher: # Resolves YouTube signatures remotely (fixes "Must find sig function" errors). See https://github.com/kikkia/yt-cipher
+      url: "https://cipher.kikkia.dev/" # Public instance (10 req/s limit). Self-host yt-cipher for heavier use and set its url/password here
+      userAgent: "VibeBot"
 
 ############################################################################################################
 ########################################### LAVALINK SETTINGS ##############################################
@@ -95,10 +98,10 @@ plugins:
 
 lavalink:
   plugins:
-    - dependency: "com.github.topi314.lavasrc:lavasrc-plugin:4.8.1"
+    - dependency: "com.github.topi314.lavasrc:lavasrc-plugin:4.8.3"
       repository: "https://maven.lavalink.dev/releases"
       snapshot: false # set to true if you want to use snapshot builds
-    - dependency: "dev.lavalink.youtube:youtube-plugin:1.18.0"
+    - dependency: "dev.lavalink.youtube:youtube-plugin:1.18.2"
       snapshot: false # Set to true if you want to use a snapshot version.
   server:
     password:
